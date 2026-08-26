@@ -1,0 +1,1 @@
+"""SuperKino Análisis — Núcleo en Python puro (sin importar streamlit)."""

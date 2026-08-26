@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "superkino"
+version = "0.1.0"
+description = "Análisis de lotería SuperKinoTV (República Dominicana) — tipo Keno: 20 números de 1–80, boleto de 10"
+requires-python = ">=3.11"
+dependencies = [
+    "streamlit>=1.35.0",
+    "pandas>=2.2.0",
+    "numpy>=1.26.0",
+    "scipy>=1.12.0",
+    "plotly>=5.18.0",
+]
+dev-dependencies = [
+    "pytest>=8.0.0",
+    "ruff>=0.5.0",
+]
+
+[project.scripts]
+superkino = "superkino.app:main"
+
+[tool.ruff]
+line-length = 88
+select = ["E", "F", "I", "TC", "Tid", "T2", "PER"]
