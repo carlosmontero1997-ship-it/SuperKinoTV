@@ -36,14 +36,6 @@ BAND_LOW = list(range(1, 27))    # 01-26
 BAND_MID = list(range(27, 55))   # 27-54
 BAND_HIGH = list(range(55, 81))  # 55-80
 
-BAND_PRESETS = {
-    "Equilibrada Dinámica": None,  # calculated dynamically
-    "4-3-3": (4, 3, 3),
-    "3-4-3": (3, 4, 3),
-    "3-3-4": (3, 3, 4),
-    "Personalizada": None,
-}
-
 COST_PER_VOLANTE = 75  # RD$
 
 
@@ -409,10 +401,16 @@ def group_into_volantes(tickets: List[Tuple[int, ...]]) -> List[List[Tuple[int, 
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def render_sidebar(n_draws: int) -> Dict:
-    """Render sidebar controls and return configuration dict."""
+    """Render sidebar controls and return configuration dict.
+
+    Per D-10: No preset selector — always Personalizada.
+    Per D-08: Band values auto-recalculate when pool_size changes.
+    Per D-09: Block generation if Baja+Media+Alta != pool_size.
+    Per D-11: Band metrics displayed with colored text.
+    """
     st.sidebar.header(":material/tune: Configuracion")
 
-    # Window slider
+    # --- Window slider (CTRL-01) ---
     max_window = min(100, n_draws)
     window = st.sidebar.slider(
         "Ventana de sorteos (retroactivos)",
@@ -424,16 +422,18 @@ def render_sidebar(n_draws: int) -> Dict:
 
     st.sidebar.divider()
 
-    # Pool size
+    # --- Pool size (CTRL-02) ---
     pool_size = st.sidebar.slider(
         "Tamano del Pool Dinamico",
         min_value=15,
         max_value=30,
         value=20,
         help="Cantidad de numeros en el pool generado automaticamente.",
+        on_change=_recalc_bands_on_pool_change,
+        args=(pool_size,),
     )
 
-    # Ticket quantity
+    # --- Ticket quantity (CTRL-03) ---
     n_tickets = st.sidebar.slider(
         "Cantidad de Boletos (Wheeling)",
         min_value=6,
@@ -444,45 +444,107 @@ def render_sidebar(n_draws: int) -> Dict:
 
     st.sidebar.divider()
 
-    # Band distribution
+    # --- Band Distribution (CTRL-04, D-10: forced Personalizada) ---
     st.sidebar.subheader("Distribucion por Franja")
     st.sidebar.caption("Baja: 01-26 | Media: 27-54 | Alta: 55-80")
 
-    preset = st.sidebar.selectbox(
-        "Preset de distribucion",
-        options=list(BAND_PRESETS.keys()),
-        index=0,
+    # Default proportional values for first load (proportional to pool_size)
+    default_baja = max(1, round(pool_size * 26 / 80))
+    default_media = max(1, round(pool_size * 28 / 80))
+    default_alta = pool_size - default_baja - default_media
+    if default_alta < 0:
+        default_alta = 0
+        default_media = pool_size - default_baja
+
+    # Three number inputs per D-10 (forced Personalizada — no preset selector)
+    # Using key param so Streamlit manages session state automatically
+    baja = st.number_input(
+        "Baja",
+        min_value=0,
+        max_value=pool_size,
+        value=st.session_state.get("_band_baja", default_baja),
+        key="_band_baja",
+        help="Numeros en rango 01-26",
+    )
+    media = st.number_input(
+        "Media",
+        min_value=0,
+        max_value=pool_size,
+        value=st.session_state.get("_band_media", default_media),
+        key="_band_media",
+        help="Numeros en rango 27-54",
+    )
+    alta = st.number_input(
+        "Alta",
+        min_value=0,
+        max_value=pool_size,
+        value=st.session_state.get("_band_alta", default_alta),
+        key="_band_alta",
+        help="Numeros en rango 55-80",
     )
 
-    band_dist = None
-    custom_input = None
+    total = baja + media + alta
 
-    if preset == "Equilibrada Dinamica":
-        band_dist = None  # Will be calculated dynamically
-        st.sidebar.info("Distribucion proporcional calculada automaticamente.")
-    elif preset == "Personalizada":
-        col1, col2, col3 = st.sidebar.columns(3)
-        with col1:
-            low = st.number_input("Baja", min_value=0, max_value=pool_size, value=math.ceil(pool_size * 26 / 80))
-        with col2:
-            mid = st.number_input("Media", min_value=0, max_value=pool_size, value=math.ceil(pool_size * 28 / 80))
-        with col3:
-            high = st.number_input("Alta", min_value=0, max_value=pool_size, value=pool_size - low - mid)
-        total = low + mid + high
-        if total != pool_size:
-            st.sidebar.warning(f"Total ({total}) != Pool ({pool_size}). Se ajustara automaticamente.")
-        band_dist = (low, mid, high)
-    else:
-        band_dist = BAND_PRESETS[preset]
-        st.sidebar.write(f" Distribucion: **{band_dist[0]}-{band_dist[1]}-{band_dist[2]}**")
+    # D-11: Colored band metrics
+    st.sidebar.divider()
+    col_b, col_m, col_a = st.sidebar.columns(3)
+    with col_b:
+        st.metric(label="Baja", value=baja, delta=":blue[Baja]")
+    with col_m:
+        st.metric(label="Media", value=media, delta=":orange[Media]")
+    with col_a:
+        st.metric(label="Alta", value=alta, delta=":red[Alta]")
+
+    # D-09: Sum validation — BLOCK if mismatch
+    band_dist = (baja, media, alta)
+    band_valid = True
+    if total != pool_size:
+        st.sidebar.error(
+            f":material/error: La suma ({total}) no coincide con el pool ({pool_size}). "
+            f"Ajuste los valores."
+        )
+        band_valid = False
 
     return {
         "window": window,
         "pool_size": pool_size,
         "n_tickets": n_tickets,
         "band_dist": band_dist,
-        "preset": preset,
+        "band_valid": band_valid,
     }
+
+
+def _recalc_bands_on_pool_change(new_pool: int) -> None:
+    """D-08: Recalculate band values proportionally when pool_size changes.
+
+    Called via on_change callback on the pool size slider.
+    Uses st.session_state directly since callback runs before widget rerender.
+    """
+    prev_pool = st.session_state.get("_prev_pool_size", new_pool)
+    if new_pool == prev_pool:
+        return
+    st.session_state["_prev_pool_size"] = new_pool
+
+    old_baja = st.session_state.get("_band_baja", 0)
+    old_media = st.session_state.get("_band_media", 0)
+    old_alta = st.session_state.get("_band_alta", 0)
+    old_total = old_baja + old_media + old_alta
+
+    if old_total > 0:
+        new_baja = max(0, round(new_pool * old_baja / old_total))
+        new_media = max(0, round(new_pool * old_media / old_total))
+        new_alta = new_pool - new_baja - new_media
+        if new_alta < 0:
+            new_alta = 0
+            new_media = new_pool - new_baja
+        st.session_state["_band_baja"] = new_baja
+        st.session_state["_band_media"] = new_media
+        st.session_state["_band_alta"] = new_alta
+    else:
+        # First load with no prior values — set proportional defaults
+        st.session_state["_band_baja"] = max(1, round(new_pool * 26 / 80))
+        st.session_state["_band_media"] = max(1, round(new_pool * 28 / 80))
+        st.session_state["_band_alta"] = new_pool - st.session_state["_band_baja"] - st.session_state["_band_media"]
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -855,6 +917,11 @@ def main():
 
     # --- Sidebar Controls ---
     config = render_sidebar(len(draws))
+
+    # D-09: Block tab rendering if band distribution is invalid
+    if not config.get("band_valid", True):
+        st.warning(":material/block: Corrija la distribucion por franja antes de continuar.")
+        return
 
     # --- Tabs ---
     tab1, tab2, tab3 = st.tabs([
