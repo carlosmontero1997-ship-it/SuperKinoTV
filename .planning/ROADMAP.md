@@ -1,8 +1,9 @@
-# Roadmap: SuperKinoTV
+# Roadmap: SuperKinoTV v1.1
 
 ## Milestones
 
 - ✅ **v1.0 MVP** — Phases 1-4 (shipped 2026-08-26)
+- ◆ **v1.1 Keno Analysis & Wheeling** — Phases 1-3 (current)
 
 ## Phases
 
@@ -16,6 +17,58 @@
 
 </details>
 
+<details open>
+<summary>◆ v1.1 Keno Analysis & Wheeling (Phases 1-3) — CURRENT</summary>
+
+### Phase 1: Data Ingestion & Controls
+
+**Goal:** User can upload/paste historical Keno data and configure all analysis parameters via sidebar controls.
+
+**Requirements:** DATA-01 through DATA-05, CTRL-01 through CTRL-04
+
+**Success Criteria:**
+1. User can upload .txt/.csv file or paste data into text area — both produce valid draws
+2. System parses DD/MM/YYYY,N1,...,N20 format and sorts numbers ascending
+3. Sidebar sliders control window (max 100), pool size (15-30), ticket count (6-30)
+4. Band distribution selector offers presets (4-3-3, 3-4-3, 3-3-4, Equilibrada, Personalizada)
+5. Invalid lines are rejected with clear error messages
+
+**UI hint:** yes
+
+### Phase 2: Analysis Matrices & Pool Generation
+
+**Goal:** Display intermediate frequency matrices and generate ranked dynamic pool from statistical analysis.
+
+**Requirements:** MATX-01, MATX-02, POOL-01, POOL-02
+
+**Success Criteria:**
+1. 100×20 intermediate matrix displays all draws with 20 sorted positions
+2. 10×10 positional frequency matrix groups numbers by adjacent lane pairs
+3. Dynamic pool generated from deduplicated frequency + co-occurrence ranking
+4. Pool shows band metrics (Low/Mid/High counts matching selected distribution)
+
+**UI hint:** yes
+
+### Phase 3: Wheeling, Volantes & Ticket Generation
+
+**Goal:** Generate deterministically reduced ticket sets organized into physical volantes with download capability.
+
+**Requirements:** TICK-01 through TICK-05
+
+**Success Criteria:**
+1. Wheeling algorithm produces deterministic reduced combinations from pool
+2. Tickets grouped into volantes of 3 plays each with RD$75 cost display
+3. Strict blindaje enforced: 0 out-of-pool numbers, ascending sort, 0 duplicates
+4. Download button exports all generated tickets as .txt file
+5. All tickets are unique (no permutations or duplicates)
+
+**UI hint:** yes
+
+</details>
+
 ### Backlog
 
-No backlog items — all milestone phases shipped.
+No backlog items — all v1.1 phases defined.
+
+---
+*Last updated: 2026-08-26 after v1.1 initialization*

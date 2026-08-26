@@ -1,23 +1,29 @@
 # State
 
 ## Current Status
-- Project type: Brownfield (existing code detected)
-- Codebase map: Complete (.planning/codebase/ with full map)
-- Planning artifacts: Initialized (PROJECT.md, REQUIREMENTS.md, ROADMAP.md, STATE.md)
-- Git repository: Not initialized
-- UI framework: Streamlit 1.35+
+- Project: SuperKinoTV v1.1
+- Milestone: v1.1 Keno Analysis & Wheeling
+- Current Phase: Phase 1 — Data Ingestion & Controls
+- Codebase: Brownfield (v1.0 shipped, 5-page Streamlit app)
+- Git: Initialized
 
 ## Recent Changes
-- Codebase map created with 7 files: STACK.md, ARCHITECTURE.md, STRUCTURE.md, CONVENTIONS.md, TESTING.md, INTEGRATIONS.md, CONCERNS.md
-- Planning artifacts initialized
-- Onboarding workflow initiated
+- v1.0 MVP shipped (4 phases, 2026-08-26)
+- v1.1 planning initialized with 3 phases
+- New single-app.py architecture for consolidated Keno analysis
 
 ## Pending Items
-- Streamlit UI pages (Phase 2 roadmap items)
-- Test suite development
-- CI configuration
+- Phase 1: Data ingestion & sidebar controls
+- Phase 2: Analysis matrices & pool generation
+- Phase 3: Wheeling, volantes & ticket generation
 
 ## Known Issues
-- No git repository initialized
-- UI still in development (3/5 pages created in roadmap)
-- Some open questions regarding temperature optimization and data quality
+- v1.0 has 5 separate page files; v1.1 consolidates to single app.py
+- Existing core/ modules may need adaptation for new matrix dimensions (100×20, 10×10)
+
+## Project Reference
+
+See: .planning/PROJECT.md (updated 2026-08-26)
+
+**Core value:** Deterministic combinatorial analysis and wheeling-based ticket generation
+**Current focus:** Phase 1 — Data Ingestion & Controls
