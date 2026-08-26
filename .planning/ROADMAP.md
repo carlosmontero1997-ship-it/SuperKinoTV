@@ -26,12 +26,18 @@
 
 **Requirements:** DATA-01 through DATA-05, CTRL-01 through CTRL-04
 
+**Plans:** 2 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Strict data ingestion with dual source detection, replace confirmation, session state persistence
+- [ ] 01-02-PLAN.md — Sidebar controls with forced Personalizada band distribution, auto-recalc, sum validation, colored metrics
+
 **Success Criteria:**
 1. User can upload .txt/.csv file or paste data into text area — both produce valid draws
 2. System parses DD/MM/YYYY,N1,...,N20 format and sorts numbers ascending
 3. Sidebar sliders control window (max 100), pool size (15-30), ticket count (6-30)
-4. Band distribution selector offers presets (4-3-3, 3-4-3, 3-3-4, Equilibrada, Personalizada)
-5. Invalid lines are rejected with clear error messages
+4. Band distribution is always Personalizada (forced, no presets) with auto-recalc on pool size change
+5. Invalid lines are rejected with numbered error messages — all-or-nothing (any error blocks all data)
 
 **UI hint:** yes
 
