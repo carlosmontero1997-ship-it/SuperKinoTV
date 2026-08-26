@@ -135,10 +135,6 @@ Streamlit uses system fonts. Documenting the effective sizes via `st.header`, `s
 | Window slider | `st.sidebar.slider` | — | Sliding window (10-100, default max) |
 | Pool size slider | `st.sidebar.slider` | — | Pool size (15-30, default 20) |
 | Ticket count slider | `st.sidebar.slider` | — | Ticket quantity (6-30, default 18) |
-| Band preset selector | `st.sidebar.selectbox` | — | Distribution preset |
-| Baja input | `st.sidebar.number_input` | — | Custom low band count |
-| Media input | `st.sidebar.number_input` | — | Custom mid band count |
-| Alta input | `st.sidebar.number_input` | — | Custom high band count |
 | Band info caption | `st.sidebar.caption` | — | "Baja: 01-26 \| Media: 27-54 \| Alta: 55-80" |
 
 ### Phase 1 — Tabs (structure only, full rendering in Phases 2-3)
@@ -163,16 +159,17 @@ Streamlit uses system fonts. Documenting the effective sizes via `st.header`, `s
 
 ### Band Distribution Flow
 
-1. **Preset selector** — `st.sidebar.selectbox` with options: "Equilibrada Dinamica", "4-3-3", "3-4-3", "3-3-4", "Personalizada"
-2. **Personalizada mode** — 3 `st.number_input` in a row (`st.columns(3)`), auto-recalculate on pool size change (D-08)
-3. **Sum validation (D-09)** — if Baja+Media+Alta != pool_size, show warning: "La suma (N) no coincide con el pool (M)"
-4. **Equilibrada Dinamica** — calculated proportionally, show `st.info` confirmation
+1. **Forced Personalizada (D-10)** — NO preset selector. User must always define distribution manually
+2. **3 number inputs** — `st.number_input` for Baja, Media, Alta in `st.columns(3)`, auto-recalculate values proportionally when pool size changes (D-08)
+3. **Sum validation (D-09)** — if Baja+Media+Alta != pool_size, BLOCK generation with message: "La suma ({total}) no coincide con el pool ({pool_size}). Ajuste los valores."
+4. **Colored metrics (D-11)** — display current distribution as `st.metric` with band colors: Baja=blue, Media=yellow, Alta=red
 
 ### Data Persistence (D-12)
 
 1. **Session state** — `st.session_state.draws` persists across all tabs
 2. **Replace confirmation (D-13)** — if `st.file_uploader` gets new file while data exists, show `st.warning` + confirmation
-3. **Dual source detection (D-14)** — if both file and text area have content, show `st.radio` selector
+3. **Dual source detection (D-14)** — if both file and text area have content, show `st.radio` selector with 3 options: "Solo archivo", "Solo texto", "Combinar ambos"
+4. **Combine behavior (D-15)** — on "Combinar ambos": merge lines from both sources, deduplicate by draw date, sort chronologically ascending
 
 ### Sidebar Control Behavior
 
