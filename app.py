@@ -103,7 +103,10 @@ def parse_line(raw: str) -> Tuple[bool, Optional[Draw], Optional[str]]:
 
 
 def ingest_lines(lines: List[str]) -> Tuple[List[Draw], List[Tuple[int, str]]]:
-    """Parse multiple lines. Returns (draws, errors)."""
+    """Parse multiple lines. Returns (draws, errors).
+    
+    Per D-02: if ANY line fails, NO data is loaded (all-or-nothing).
+    """
     draws: List[Draw] = []
     errors: List[Tuple[int, str]] = []
     seen_dates: set = set()
@@ -111,13 +114,17 @@ def ingest_lines(lines: List[str]) -> Tuple[List[Draw], List[Tuple[int, str]]]:
     for idx, raw in enumerate(lines):
         ok, draw, err = parse_line(raw)
         if not ok:
-            errors.append((idx, err))
+            errors.append((idx + 1, err))  # 1-indexed line numbers per D-03
             continue
         if draw.date_iso in seen_dates:
-            errors.append((idx, f"Fecha duplicada: {draw.date_iso}"))
+            errors.append((idx + 1, f"Fecha duplicada: {draw.date_iso}"))
             continue
         seen_dates.add(draw.date_iso)
         draws.append(draw)
+
+    # D-02: all-or-nothing — if ANY errors, return no draws
+    if errors:
+        return [], errors
 
     draws.sort(key=lambda d: d.date_iso)
     return draws, errors
@@ -403,7 +410,7 @@ def group_into_volantes(tickets: List[Tuple[int, ...]]) -> List[List[Tuple[int, 
 
 def render_sidebar(n_draws: int) -> Dict:
     """Render sidebar controls and return configuration dict."""
-    st.sidebar.header("⚙️ Configuracion")
+    st.sidebar.header(":material/tune: Configuracion")
 
     # Window slider
     max_window = min(100, n_draws)
@@ -496,7 +503,7 @@ def render_tab_matrices(draws: List[Draw], config: Dict):
     )
 
     df_inter = compute_intermediate_matrix(draws, window)
-    st.dataframe(df_inter, use_container_width=True, height=400)
+    st.dataframe(df_inter, width="stretch", height=400)
 
     st.divider()
 
@@ -509,7 +516,7 @@ def render_tab_matrices(draws: List[Draw], config: Dict):
     )
 
     df_freq = compute_positional_frequency_matrix(draws, window)
-    st.dataframe(df_freq, use_container_width=True)
+    st.dataframe(df_freq, width="stretch")
 
     # Heatmap visualization
     try:
@@ -523,7 +530,7 @@ def render_tab_matrices(draws: List[Draw], config: Dict):
             color_continuous_scale="YlOrRd",
             title="Frecuencia Posicional por Franja y Carril",
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
     except ImportError:
         st.info("Instala plotly para visualizaciones: `pip install plotly`")
 
@@ -586,7 +593,7 @@ def render_tab_pool(draws: List[Draw], config: Dict):
     )
     df_ranked.index = range(1, len(df_ranked) + 1)
     df_ranked.index.name = "Rank"
-    st.dataframe(df_ranked, use_container_width=True)
+    st.dataframe(df_ranked, width="stretch")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -674,7 +681,7 @@ def render_tab_tickets(draws: List[Draw], config: Dict):
 
         if blindaje_ok:
             st.success(
-                f"✓ Blindaje estricto verificado: "
+                f":material/check_circle: Blindaje estricto verificado: "
                 f"0 numeros fuera del pool, orden ascendente, "
                 f"0 boletos duplicados o permutados."
             )
@@ -711,7 +718,7 @@ def render_tab_tickets(draws: List[Draw], config: Dict):
         download_text = "\n".join(download_lines)
 
         st.download_button(
-            label="📥 Descargar jugadas (.txt)",
+            label=":material/download: Descargar jugadas (.txt)",
             data=download_text,
             file_name=f"superkino_jugadas_{datetime.now().strftime('%Y%m%d_%H%M')}.txt",
             mime="text/plain",
@@ -720,19 +727,19 @@ def render_tab_tickets(draws: List[Draw], config: Dict):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# MAIN APP
+# DATA INGESTION UI
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def main():
-    """Main Streamlit application."""
-    st.title("🎰 SuperKinoTV — Keno 20/80")
-    st.markdown(
-        "**Analisis y generacion de boletos** para el juego Keno 20/80 (SuperKino TV). "
-        "Toda la logica es 100% deterministica — ejecutada en Python backend."
-    )
-
-    # ── Data Ingestion ────────────────────────────────────────────────
-    st.subheader("📂 Carga de Datos Historicos")
+def render_data_ingestion() -> List[Draw]:
+    """Render data ingestion UI and return draws from session state.
+    
+    Handles:
+    - D-12: Data persists across all tabs via session_state.draws
+    - D-13: Replace confirmation when uploading new file while data exists
+    - D-14: Dual source detection (file + text area both have content)
+    - D-15: Combine both sources with dedup by date
+    """
+    st.subheader(":material/upload: Carga de Datos Historicos")
 
     col_upload, col_paste = st.columns([1, 1])
 
@@ -751,43 +758,109 @@ def main():
             help="Una linea por sorteo: DD/MM/AAAA,N1,N2,...,N20",
         )
 
-    # Process data
-    draws: List[Draw] = []
-    errors: List[Tuple[int, str]] = []
+    has_file = uploaded_file is not None
+    has_text = bool(text_area.strip())
+    has_existing = "draws" in st.session_state and len(st.session_state.draws) > 0
 
-    if uploaded_file is not None or text_area.strip():
-        draws, errors = get_draws_from_input(uploaded_file, text_area)
+    # --- D-14: Dual source detection ---
+    if has_file and has_text:
+        st.warning(":material/warning: Se detectaron dos fuentes de datos. &iquest;Cual desea usar?")
+        source_choice = st.radio(
+            "Fuente de datos",
+            options=["Solo archivo", "Solo texto", "Combinar ambos"],
+            label_visibility="collapsed",
+            horizontal=True,
+        )
+        if source_choice == "Solo archivo":
+            lines = uploaded_file.getvalue().decode("utf-8", errors="replace").splitlines()
+        elif source_choice == "Solo texto":
+            lines = text_area.strip().splitlines()
+        else:  # Combinar ambos — D-15
+            file_lines = uploaded_file.getvalue().decode("utf-8", errors="replace").splitlines()
+            text_lines = text_area.strip().splitlines()
+            lines = file_lines + text_lines
+    elif has_file:
+        # --- D-13: Replace confirmation ---
+        if has_existing:
+            st.warning(":material/warning: &iquest;Reemplazar datos actuales?")
+            col_yes, col_no = st.columns(2)
+            with col_yes:
+                if st.button("Si, reemplazar", type="primary", key="confirm_replace"):
+                    st.session_state["_replace_confirmed"] = True
+            with col_no:
+                if st.button("No, cancelar", key="cancel_replace"):
+                    st.session_state["_replace_confirmed"] = False
 
-        if draws:
-            st.success(f"✓ {len(draws)} sorteos validos cargados.")
-
-        if errors:
-            with st.expander(f"⚠ {len(errors)} lineas con errores"):
-                for idx, err in errors:
-                    st.write(f"Linea {idx + 1}: {err}")
-
-    if not draws:
+            if st.session_state.get("_replace_confirmed"):
+                lines = uploaded_file.getvalue().decode("utf-8", errors="replace").splitlines()
+            else:
+                # Show existing data info, don't replace
+                st.info(f":material/info: {len(st.session_state.draws)} sorteos cargados existentes.")
+                return st.session_state.draws
+        else:
+            lines = uploaded_file.getvalue().decode("utf-8", errors="replace").splitlines()
+    elif has_text:
+        lines = text_area.strip().splitlines()
+    else:
+        # No input — show empty state
+        if has_existing:
+            return st.session_state.draws
         st.info(
-            "Carga un archivo .txt/.csv o pega las lineneas del historial para comenzar. "
+            "Carga un archivo .txt/.csv o pega las lineas del historial para comenzar. "
             "Formato esperado: `DD/MM/AAAA,n1,n2,...,n20` (20 numeros, 1-80, unicos)."
         )
-
-        # Show sample data info
         st.markdown("---")
         st.markdown(
-            "**Datos de referencia:** 120 sorteos historicos (21/04/2026 – 19/08/2026). "
+            "**Datos de referencia:** 120 sorteos historicos (21/04/2026 - 19/08/2026). "
             "Puedes cargar tu archivo `SuperKinoTV.txt` o pegar los datos directamente."
         )
+        return []
+
+    # --- Process data (strict: all-or-nothing per D-02) ---
+    draws, errors = ingest_lines(lines)
+
+    if errors:
+        # D-02: NO data loaded when errors exist
+        with st.expander(f":material/error: {len(errors)} lineas con errores"):
+            for line_num, err_msg in errors:
+                st.write(f"Linea {line_num}: {err_msg}")
+        return []
+
+    if draws:
+        # D-12: Persist in session state
+        st.session_state.draws = draws
+        st.success(f":material/check_circle: {len(draws)} sorteos validos cargados.")
+        return draws
+
+    return []
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MAIN APP
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def main():
+    """Main Streamlit application."""
+    st.title(":material/casino: SuperKinoTV - Keno 20/80")
+    st.markdown(
+        "**Analisis y generacion de boletos** para el juego Keno 20/80 (SuperKino TV). "
+        "Toda la logica es 100% deterministica - ejecutada en Python backend."
+    )
+
+    # --- Data Ingestion (D-12: persists via session state) ---
+    draws = render_data_ingestion()
+
+    if not draws:
         return
 
-    # ── Sidebar Controls ──────────────────────────────────────────────
+    # --- Sidebar Controls ---
     config = render_sidebar(len(draws))
 
-    # ── Tabs ──────────────────────────────────────────────────────────
+    # --- Tabs ---
     tab1, tab2, tab3 = st.tabs([
-        "📊 Matrices Intermedias",
-        "🎯 Pool Dinamico",
-        "🎟️ Volantes & Reduccion Combinatoria",
+        ":material/table_chart: Matrices Intermedias",
+        ":material/query_stats: Pool Dinamico",
+        ":material/style: Volantes & Reduccion Combinatoria",
     ])
 
     with tab1:
