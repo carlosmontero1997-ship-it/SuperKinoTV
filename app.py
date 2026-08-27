@@ -759,6 +759,499 @@ def walk_forward_backtest(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# PREDICTIVE ANALYSIS ENGINE (Phase 7: BT-06)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+def compute_cooccurrence_matrix(draws: List[Draw], window: int) -> pd.DataFrame:
+    """Standalone co-occurrence matrix for all 80 numbers.
+
+    For each pair (a, b) where a != b, count how many draws both appear in,
+    normalized by total draws in window. Returns an 80x80 DataFrame.
+    """
+    subset = draws[-window:] if len(draws) >= window else draws
+    n_draws = len(subset)
+
+    # Count co-occurrences
+    pair_counts: Dict[Tuple[int, int], int] = defaultdict(int)
+    for draw in subset:
+        nums = sorted(draw.numbers)
+        for i, a in enumerate(nums):
+            for b in nums[i + 1:]:
+                pair_counts[(a, b)] += 1
+                pair_counts[(b, a)] += 1
+
+    # Normalize
+    all_numbers = list(range(1, 81))
+    data = np.zeros((80, 80), dtype=np.float64)
+    for a in all_numbers:
+        for b in all_numbers:
+            if a != b:
+                data[a - 1][b - 1] = pair_counts.get((a, b), 0) / max(n_draws, 1)
+
+    return pd.DataFrame(data, index=all_numbers, columns=all_numbers)
+
+
+def compute_temporal_patterns(draws: List[Draw], window: int) -> Dict:
+    """Analyze temporal patterns: day-of-week, band trends, cyclical behavior."""
+    subset = draws[-window:] if len(draws) >= window else draws
+    n_draws = len(subset)
+
+    # --- Day-of-week frequencies ---
+    day_of_week_freq: Dict[int, Dict[int, float]] = {}
+    day_counts: Dict[int, int] = defaultdict(int)
+    day_num_freq: Dict[int, Counter] = defaultdict(Counter)
+
+    for draw in subset:
+        try:
+            dt = datetime.fromisoformat(draw.date_iso)
+            dow = dt.weekday()  # 0=Monday..6=Sunday
+        except (ValueError, TypeError):
+            continue
+        day_counts[dow] += 1
+        for n in draw.numbers:
+            day_num_freq[dow][n] += 1
+
+    for dow in range(7):
+        total = max(day_counts.get(dow, 1), 1)
+        day_of_week_freq[dow] = {
+            n: cnt / total for n, cnt in day_num_freq[dow].items()
+        }
+
+    # --- Band trends (rolling averages at 10, 20, 30) ---
+    band_trends: Dict[str, List[float]] = {"Baja": [], "Media": [], "Alta": []}
+    band_cyclical: Dict[str, bool] = {"Baja": False, "Media": False, "Alta": False}
+    recent_band_shift: Dict[str, float] = {"Baja": 0.0, "Media": 0.0, "Alta": 0.0}
+
+    def _count_bands(draws_slice: List[Draw]) -> Dict[str, int]:
+        counts = {"Baja": 0, "Media": 0, "Alta": 0}
+        total_nums = 0
+        for d in draws_slice:
+            for n in d.numbers:
+                total_nums += 1
+                if n in BAND_LOW:
+                    counts["Baja"] += 1
+                elif n in BAND_MID:
+                    counts["Media"] += 1
+                else:
+                    counts["Alta"] += 1
+        return {k: v / max(total_nums, 1) for k, v in counts.items()}
+
+    for band_name in ["Baja", "Media", "Alta"]:
+        for window_size in [10, 20, 30]:
+            if n_draws >= window_size:
+                freqs = _count_bands(subset[-window_size:])
+                band_trends[band_name].append(freqs[band_name])
+            else:
+                freqs = _count_bands(subset)
+                band_trends[band_name].append(freqs[band_name])
+
+        # Cyclical detection: check if frequency oscillates
+        if len(band_trends[band_name]) >= 2:
+            vals = band_trends[band_name]
+            # Simple oscillation: alternating above/below mean
+            mean_val = sum(vals) / len(vals)
+            signs = [v - mean_val for v in vals]
+            alternations = sum(
+                1 for i in range(1, len(signs))
+                if signs[i] * signs[i - 1] < 0
+            )
+            if alternations >= len(signs) - 1 and len(signs) >= 3:
+                band_cyclical[band_name] = True
+
+        # Recent band shift: last 10 vs previous 10
+        if n_draws >= 20:
+            recent_freqs = _count_bands(subset[-10:])
+            prev_freqs = _count_bands(subset[-20:-10])
+            recent_band_shift[band_name] = recent_freqs[band_name] - prev_freqs[band_name]
+        elif n_draws >= 10:
+            recent_freqs = _count_bands(subset[-10:])
+            prev_freqs = _count_bands(subset[:max(1, n_draws - 10)])
+            recent_band_shift[band_name] = recent_freqs[band_name] - prev_freqs[band_name]
+
+    return {
+        "day_of_week_freq": day_of_week_freq,
+        "band_trends": band_trends,
+        "band_cyclical": band_cyclical,
+        "recent_band_shift": recent_band_shift,
+    }
+
+
+def compute_predictive_scores(
+    draws: List[Draw], window: int, temperature: float = 1.0,
+) -> Dict:
+    """Main predictive scoring engine combining 6 factors.
+
+    Factors: frequency, gap, co-occurrence, recency, temporal, band_trend.
+    Returns confidence scores 0-100 for each number.
+    """
+    subset = draws[-window:] if len(draws) >= window else draws
+    n_draws = len(subset)
+
+    # --- Factor a: Frequency ranking (normalized 0-1) ---
+    freq_ranked = compute_frequency_ranking(draws, window)
+    freq_dict: Dict[int, float] = {}
+    max_freq_score = max((s for _, s, _ in freq_ranked), default=1)
+    for num, score, _ in freq_ranked:
+        freq_dict[num] = score / max(max_freq_score, 1e-8)
+
+    # --- Factor b: Gap score ---
+    gap_df = compute_gap_analysis(draws, window)
+    optimal_gap = window / 20.0  # Expected average gap for 20 numbers in 80
+    gap_scores: Dict[int, float] = {}
+    for _, row in gap_df.iterrows():
+        num = int(row["Numero"])
+        gap = row["Gap"]
+        gap_scores[num] = max(0.0, 1.0 - abs(gap - optimal_gap) / max(window, 1))
+
+    # --- Factor c: Co-occurrence (average with top-20 numbers) ---
+    cooc_df = compute_cooccurrence_matrix(draws, window)
+    top20_nums = [n for n, _, _ in freq_ranked[:20]]
+    cooc_scores: Dict[int, float] = {}
+    for num in range(1, 81):
+        cooc_vals = [cooc_df.loc[num, t] for t in top20_nums if t != num]
+        cooc_scores[num] = float(np.mean(cooc_vals)) if cooc_vals else 0.0
+
+    # Normalize co-occurrence
+    max_cooc = max(cooc_scores.values(), default=1)
+    for num in cooc_scores:
+        cooc_scores[num] /= max(max_cooc, 1e-8)
+
+    # --- Factor d: Temperature-weighted recency ---
+    decay = 1.0 / max(temperature, 1e-8)
+    recency_scores: Dict[int, float] = {}
+    for num in range(1, 81):
+        weight_sum = 0.0
+        for idx, draw in enumerate(subset):
+            if num in draw.numbers:
+                weight_sum += math.exp(-decay * (n_draws - 1 - idx))
+        recency_scores[num] = weight_sum
+
+    max_recency = max(recency_scores.values(), default=1)
+    for num in recency_scores:
+        recency_scores[num] /= max(max_recency, 1e-8)
+
+    # --- Factor e: Temporal pattern (day-of-week boost) ---
+    temporal = compute_temporal_patterns(draws, window)
+    today_dow = datetime.now().weekday()
+    temporal_scores: Dict[int, float] = {}
+    day_freqs = temporal["day_of_week_freq"].get(today_dow, {})
+    max_temporal = max(day_freqs.values(), default=1) if day_freqs else 1
+    for num in range(1, 81):
+        temporal_scores[num] = day_freqs.get(num, 0) / max(max_temporal, 1e-8)
+
+    # --- Factor f: Band trend boost ---
+    band_scores: Dict[int, float] = {}
+    shift = temporal["recent_band_shift"]
+    for num in range(1, 81):
+        if num in BAND_LOW:
+            band_scores[num] = shift.get("Baja", 0.0)
+        elif num in BAND_MID:
+            band_scores[num] = shift.get("Media", 0.0)
+        else:
+            band_scores[num] = shift.get("Alta", 0.0)
+
+    # Normalize band scores to 0-1
+    band_vals = list(band_scores.values())
+    if band_vals:
+        b_min, b_max = min(band_vals), max(band_vals)
+        b_range = b_max - b_min if b_max != b_min else 1.0
+        for num in band_scores:
+            band_scores[num] = (band_scores[num] - b_min) / b_range
+
+    # --- Combined score ---
+    weights = {
+        "frequency": 0.25,
+        "gap": 0.15,
+        "cooccurrence": 0.20,
+        "recency": 0.15,
+        "temporal": 0.10,
+        "band_trend": 0.15,
+    }
+
+    combined: Dict[int, float] = {}
+    for num in range(1, 81):
+        combined[num] = (
+            weights["frequency"] * freq_dict.get(num, 0)
+            + weights["gap"] * gap_scores.get(num, 0)
+            + weights["cooccurrence"] * cooc_scores.get(num, 0)
+            + weights["recency"] * recency_scores.get(num, 0)
+            + weights["temporal"] * temporal_scores.get(num, 0)
+            + weights["band_trend"] * band_scores.get(num, 0)
+        )
+
+    # Normalize to 0-100
+    max_combined = max(combined.values(), default=1)
+    min_combined = min(combined.values(), default=0)
+    c_range = max_combined - min_combined if max_combined != min_combined else 1.0
+
+    number_scores = []
+    for num in range(1, 81):
+        normalized = (combined[num] - min_combined) / c_range * 100
+        number_scores.append({
+            "number": num,
+            "score": round(normalized, 1),
+            "factors": {
+                "frequency": round(freq_dict.get(num, 0), 4),
+                "gap": round(gap_scores.get(num, 0), 4),
+                "cooccurrence": round(cooc_scores.get(num, 0), 4),
+                "recency": round(recency_scores.get(num, 0), 4),
+                "temporal": round(temporal_scores.get(num, 0), 4),
+                "band_trend": round(band_scores.get(num, 0), 4),
+            },
+        })
+
+    number_scores.sort(key=lambda x: x["score"], reverse=True)
+
+    # Top co-occurring pairs
+    top_pairs: List[Tuple[int, int, float]] = []
+    seen = set()
+    for a in range(1, 81):
+        for b in range(a + 1, 81):
+            val = cooc_df.loc[a, b]
+            if val > 0:
+                top_pairs.append((a, b, float(val)))
+    top_pairs.sort(key=lambda x: x[2], reverse=True)
+
+    return {
+        "number_scores": number_scores,
+        "temporal_patterns": temporal,
+        "cooccurrence_top_pairs": top_pairs[:20],
+    }
+
+
+def suggest_band_distribution(
+    draws: List[Draw], window: int, predictive_scores: Dict,
+) -> Dict:
+    """Suggest optimal band distribution based on historical patterns and trends."""
+    subset = draws[-window:] if len(draws) >= window else draws
+
+    # Historical band frequency over window
+    band_counts = {"Baja": 0, "Media": 0, "Alta": 0}
+    total_nums = 0
+    for draw in subset:
+        for n in draw.numbers:
+            total_nums += 1
+            if n in BAND_LOW:
+                band_counts["Baja"] += 1
+            elif n in BAND_MID:
+                band_counts["Media"] += 1
+            else:
+                band_counts["Alta"] += 1
+
+    band_freq = {k: v / max(total_nums, 1) for k, v in band_counts.items()}
+
+    # Expected proportional (26/80, 28/80, 26/80)
+    expected = {"Baja": 26 / 80, "Media": 28 / 80, "Alta": 26 / 80}
+
+    # Trend analysis
+    temporal = predictive_scores.get("temporal_patterns", {})
+    shift = temporal.get("recent_band_shift", {})
+    cyclical = temporal.get("band_cyclical", {})
+
+    # Score each band
+    band_analysis: Dict[str, Dict] = {}
+    for band in ["Baja", "Media", "Alta"]:
+        freq = band_freq.get(band, 0)
+        trend_val = shift.get(band, 0.0)
+        is_hot = freq > expected[band]
+        is_cold = freq < expected[band]
+
+        if trend_val > 0.01:
+            trend = "up"
+        elif trend_val < -0.01:
+            trend = "down"
+        else:
+            trend = "stable"
+
+        if is_hot:
+            hot_cold = "hot"
+        elif is_cold:
+            hot_cold = "cold"
+        else:
+            hot_cold = "neutral"
+
+        band_analysis[band] = {
+            "frequency": freq,
+            "trend": trend,
+            "hot_cold": hot_cold,
+            "shift": trend_val,
+            "cyclical": cyclical.get(band, False),
+        }
+
+    # Determine suggested distribution (10 numbers total)
+    # Start from expected proportional and adjust
+    base = {"Baja": 3, "Media": 4, "Alta": 3}  # 3-4-3 base
+
+    for band in ["Baja", "Media", "Alta"]:
+        info = band_analysis[band]
+        if info["trend"] == "up" and info["hot_cold"] in ("hot", "neutral"):
+            base[band] += 1
+        elif info["trend"] == "down" and info["hot_cold"] == "cold":
+            base[band] -= 1
+
+    # Ensure all >= 0 and sum = 10
+    for band in base:
+        base[band] = max(0, base[band])
+
+    total = sum(base.values())
+    if total != 10:
+        # Adjust the band with the highest frequency
+        diff = 10 - total
+        sorted_bands = sorted(base.keys(), key=lambda b: band_freq.get(b, 0), reverse=True)
+        idx = 0
+        while sum(base.values()) != 10 and idx < 100:
+            band = sorted_bands[idx % 3]
+            if diff > 0:
+                base[band] += 1
+                diff -= 1
+            elif diff < 0 and base[band] > 0:
+                base[band] -= 1
+                diff += 1
+            idx += 1
+
+    suggested = (base["Baja"], base["Media"], base["Alta"])
+
+    # Confidence: based on how consistent trends are
+    trend_consistency = sum(
+        1 for b in ["Baja", "Media", "Alta"]
+        if band_analysis[b]["trend"] != "stable"
+    )
+    confidence = 50 + trend_consistency * 15  # 50-95 range
+    confidence = min(confidence, 95)
+
+    # Reasoning
+    parts = []
+    for band in ["Baja", "Media", "Alta"]:
+        info = band_analysis[band]
+        direction = "↑" if info["trend"] == "up" else "↓" if info["trend"] == "down" else "→"
+        pct = info["shift"] * 100
+        parts.append(f"{band} {direction} ({pct:+.1f}%)")
+    reasoning = ", ".join(parts)
+
+    # Alternative distributions
+    alternatives = []
+    # Proportional distribution
+    alt_prop = (3, 4, 3)
+    alternatives.append({
+        "dist": alt_prop,
+        "confidence": 60,
+        "reason": "Distribucion proporcional basica (3-4-3)",
+    })
+    # All-hot distribution
+    hot_bands = [b for b, info in band_analysis.items() if info["hot_cold"] == "hot"]
+    if hot_bands:
+        alt_hot = list(alt_prop)
+        for band in hot_bands:
+            idx = ["Baja", "Media", "Alta"].index(band)
+            alt_hot[idx] += 1
+            other_idx = (idx + 1) % 3
+            if alt_hot[other_idx] > 1:
+                alt_hot[other_idx] -= 1
+        total_alt = sum(alt_hot)
+        if total_alt == 10:
+            alternatives.append({
+                "dist": tuple(alt_hot),
+                "confidence": 70,
+                "reason": f"Priorizar franjas calientes: {', '.join(hot_bands)}",
+            })
+
+    return {
+        "suggested_distribution": suggested,
+        "confidence": float(confidence),
+        "reasoning": reasoning,
+        "alternative_distributions": alternatives,
+        "band_analysis": band_analysis,
+    }
+
+
+def recommend_tickets(
+    draws: List[Draw],
+    predictive_scores: Dict,
+    band_suggestion: Dict,
+    config: Dict,
+) -> Dict:
+    """Generate recommended ticket compositions based on predictive scores."""
+    suggested_dist = band_suggestion["suggested_distribution"]
+    low_n, mid_n, high_n = suggested_dist
+    n_tickets = config.get("n_tickets", 18)
+
+    # Split numbers by band with scores
+    scored = predictive_scores["number_scores"]
+    low_nums = [(s["number"], s["score"]) for s in scored if s["number"] in BAND_LOW]
+    mid_nums = [(s["number"], s["score"]) for s in scored if s["number"] in BAND_MID]
+    high_nums = [(s["number"], s["score"]) for s in scored if s["number"] in BAND_HIGH]
+
+    recommended_tickets: List[Dict] = []
+    pool_used: List[int] = []
+    total_score = 0.0
+
+    # Generate min(n_tickets, possible combinations) tickets
+    max_tickets = min(n_tickets, 10)
+
+    for i in range(max_tickets):
+        # Select top numbers from each band (with slight rotation for variety)
+        offset = i % 3
+        ticket_low = [n for n, _ in low_nums[offset:offset + low_n]]
+        ticket_mid = [n for n, _ in mid_nums[offset:offset + mid_n]]
+        ticket_high = [n for n, _ in high_nums[offset:offset + high_n]]
+
+        # Fill if any band is short
+        all_ticket = ticket_low + ticket_mid + ticket_high
+        if len(all_ticket) < 10:
+            remaining = [s["number"] for s in scored if s["number"] not in all_ticket]
+            all_ticket.extend(remaining[: 10 - len(all_ticket)])
+
+        all_ticket = sorted(all_ticket[:10])
+
+        if len(all_ticket) < 10:
+            continue
+
+        # Compute average score
+        ticket_scores = [s["score"] for s in scored if s["number"] in all_ticket]
+        avg_score = sum(ticket_scores) / len(ticket_scores) if ticket_scores else 0.0
+
+        # Band counts
+        b_count = sum(1 for n in all_ticket if n in BAND_LOW)
+        m_count = sum(1 for n in all_ticket if n in BAND_MID)
+        a_count = sum(1 for n in all_ticket if n in BAND_HIGH)
+
+        # Reasoning
+        high_score_nums = [n for n in all_ticket if any(
+            s["number"] == n and s["score"] > 60 for s in scored
+        )]
+        reasoning_parts = []
+        if high_score_nums:
+            reasoning_parts.append(
+                f"Numeros de alta confianza: {', '.join(f'{n:02d}' for n in high_score_nums[:3])}"
+            )
+        reasoning_parts.append(
+            f"Franja: {b_count} Baja, {m_count} Media, {a_count} Alta "
+            f"({band_suggestion['confidence']:.0f}% confianza)"
+        )
+        reasoning = ". ".join(reasoning_parts)
+
+        recommended_tickets.append({
+            "numbers": tuple(all_ticket),
+            "reasoning": reasoning,
+            "score": round(avg_score, 1),
+            "band_dist": (b_count, m_count, a_count),
+        })
+
+        total_score += avg_score
+        pool_used.extend(all_ticket)
+
+    pool_used = sorted(set(pool_used))
+    avg_total = total_score / max(len(recommended_tickets), 1)
+
+    return {
+        "recommended_tickets": recommended_tickets,
+        "pool_used": pool_used,
+        "total_score": round(avg_total, 1),
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # SIDEBAR CONTROLS
 # ═══════════════════════════════════════════════════════════════════════════════
 
