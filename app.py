@@ -1047,7 +1047,7 @@ def render_tab_tickets(draws: List[Draw], config: Dict):
 
     st.info(f"Pool base: {pool}")
 
-    # Execute wheeling
+    # Execute wheeling — store in session_state
     if st.button("Generar Boletos", type="primary", key="gen_tickets"):
         with st.spinner("Ejecutando reduccion combinatoria determinista..."):
             tickets, wheel_errors = wheeling_reduction(pool, n_tickets, ticket_size=10)
@@ -1061,179 +1061,187 @@ def render_tab_tickets(draws: List[Draw], config: Dict):
             return
 
         volantes = group_into_volantes(tickets)
+        st.session_state.generated_tickets = tickets
+        st.session_state.generated_volantes = volantes
+        st.session_state.generated_pool = pool
+        st.rerun()
 
-        # Summary metrics
-        st.subheader("Resumen")
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Boletos generados", len(tickets))
-        with col2:
-            st.metric("Volantes", len(volantes))
-        with col3:
-            total_cost = len(volantes) * COST_PER_VOLANTE
-            st.metric("Costo Total", f"RD${total_cost:,}")
+    # Display generated tickets (from session_state)
+    tickets = st.session_state.get("generated_tickets", [])
+    volantes = st.session_state.get("generated_volantes", [])
+    saved_pool = st.session_state.get("generated_pool", [])
 
-        st.divider()
+    if not tickets:
+        st.info("Haz clic en 'Generar Boletos' para comenzar.")
+        return
 
-        # Display volantes
-        st.subheader("Volantes Generados")
+    # Summary metrics
+    st.subheader("Resumen")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Boletos generados", len(tickets))
+    with col2:
+        st.metric("Volantes", len(volantes))
+    with col3:
+        total_cost = len(volantes) * COST_PER_VOLANTE
+        st.metric("Costo Total", f"RD${total_cost:,}")
 
-        for vol_idx, volante in enumerate(volantes):
-            vol_cost = len(volante) * (COST_PER_VOLANTE // 3)
-            with st.expander(
-                f"Volante #{vol_idx + 1} — {len(volante)} jugada(s) — RD${COST_PER_VOLANTE}"
-            ):
-                for play_idx, ticket in enumerate(volante):
-                    nums_str = ", ".join(f"{n:02d}" for n in ticket)
-                    st.write(f"**Jugada {play_idx + 1}:** {nums_str}")
+    st.divider()
 
-        st.divider()
+    # Display volantes
+    st.subheader("Volantes Generados")
 
-        # Blindaje verification
-        st.subheader("Verificacion de Blindaje")
+    for vol_idx, volante in enumerate(volantes):
+        with st.expander(
+            f"Volante #{vol_idx + 1} — {len(volante)} jugada(s) — RD${COST_PER_VOLANTE}"
+        ):
+            for play_idx, ticket in enumerate(volante):
+                nums_str = ", ".join(f"{n:02d}" for n in ticket)
+                st.write(f"**Jugada {play_idx + 1}:** {nums_str}")
 
-        blindaje_ok = True
-        issues = []
+    st.divider()
 
-        for i, ticket in enumerate(tickets):
-            # Check ascending order
-            if list(ticket) != sorted(ticket):
-                blindaje_ok = False
-                issues.append(f"Boleto {i+1}: no esta ordenado ascendente")
-            # Check all in pool
-            for n in ticket:
-                if n not in pool:
-                    blindaje_ok = False
-                    issues.append(f"Boleto {i+1}: numero {n} fuera del pool")
-            # Check size
-            if len(ticket) != 10:
-                blindaje_ok = False
-                issues.append(f"Boleto {i+1}: tamano {len(ticket)} != 10")
+    # Blindaje verification
+    st.subheader("Verificacion de Blindaje")
 
-        # Check duplicates
-        ticket_set = set(tickets)
-        if len(ticket_set) != len(tickets):
+    blindaje_ok = True
+    issues = []
+
+    for i, ticket in enumerate(tickets):
+        if list(ticket) != sorted(ticket):
             blindaje_ok = False
-            issues.append(f"Tickets duplicados detectados")
+            issues.append(f"Boleto {i+1}: no esta ordenado ascendente")
+        for n in ticket:
+            if n not in pool:
+                blindaje_ok = False
+                issues.append(f"Boleto {i+1}: numero {n} fuera del pool")
+        if len(ticket) != 10:
+            blindaje_ok = False
+            issues.append(f"Boleto {i+1}: tamano {len(ticket)} != 10")
 
-        if blindaje_ok:
-            st.success(
-                f":material/check_circle: Blindaje estricto verificado: "
-                f"0 numeros fuera del pool, orden ascendente, "
-                f"0 boletos duplicados o permutados."
-            )
-        else:
-            st.error("Problemas de blindaje detectados:")
-            for issue in issues[:10]:
-                st.write(f"  - {issue}")
+    ticket_set = set(tickets)
+    if len(ticket_set) != len(tickets):
+        blindaje_ok = False
+        issues.append("Tickets duplicados detectados")
 
-        # Download button
-        st.divider()
-        st.subheader("Descargar Jugadas")
+    if blindaje_ok:
+        st.success(
+            ":material/check_circle: Blindaje estricto verificado: "
+            "0 numeros fuera del pool, orden ascendente, "
+            "0 boletos duplicados o permutados."
+        )
+    else:
+        st.error("Problemas de blindaje detectados:")
+        for issue in issues[:10]:
+            st.write(f"  - {issue}")
 
-        download_lines = []
-        download_lines.append("=" * 60)
-        download_lines.append("SUPERKINOTV — KENO 20/80 — JUGADAS GENERADAS")
-        download_lines.append(f"Fecha: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
-        download_lines.append(f"Pool: {', '.join(str(n) for n in pool)}")
-        download_lines.append(f"Boletos: {len(tickets)} | Volantes: {len(volantes)}")
-        download_lines.append(f"Costo Total: RD${len(volantes) * COST_PER_VOLANTE:,}")
-        download_lines.append("=" * 60)
+    # Download button
+    st.divider()
+    st.subheader("Descargar Jugadas")
+
+    download_lines = [
+        "=" * 60,
+        "SUPERKINOTV — KENO 20/80 — JUGADAS GENERADAS",
+        f"Fecha: {datetime.now().strftime('%d/%m/%Y %H:%M')}",
+        f"Pool: {', '.join(str(n) for n in pool)}",
+        f"Boletos: {len(tickets)} | Volantes: {len(volantes)}",
+        f"Costo Total: RD${len(volantes) * COST_PER_VOLANTE:,}",
+        "=" * 60,
+        "",
+    ]
+
+    for vol_idx, volante in enumerate(volantes):
+        download_lines.append(f"--- VOLANTE #{vol_idx + 1} (RD${COST_PER_VOLANTE}) ---")
+        for play_idx, ticket in enumerate(volante):
+            nums_str = ",".join(f"{n:02d}" for n in ticket)
+            download_lines.append(f"  Jugada {play_idx + 1}: {nums_str}")
         download_lines.append("")
 
+    download_lines.extend([
+        "=" * 60,
+        "Generado por SuperKinoTV — Analisis Determinista",
+        "=" * 60,
+    ])
+
+    download_text = "\n".join(download_lines)
+
+    st.download_button(
+        label=":material/download: Descargar jugadas (.txt)",
+        data=download_text,
+        file_name=f"superkino_jugadas_{datetime.now().strftime('%Y%m%d_%H%M')}.txt",
+        mime="text/plain",
+        type="primary",
+    )
+
+    # Verification against winning numbers
+    st.divider()
+    st.subheader(":material/verified: Verificar Contra Numeros Ganadores")
+    st.caption("Ingresa los 20 numeros ganadores para verificar aciertos en tus boletos.")
+
+    winning_input = st.text_area(
+        "Numeros ganadores (20 numeros separados por coma)",
+        placeholder="01,05,12,18,23,25,30,35,40,44,50,52,55,57,59,61,63,70,75,80",
+        help="Ingresa exactamente 20 numeros del 1 al 80, separados por coma.",
+        key="winning_numbers_input",
+    )
+
+    if st.button("Verificar Aciertos", type="primary", key="verify_btn"):
+        try:
+            winning_nums = [int(n.strip()) for n in winning_input.split(",")]
+        except ValueError:
+            st.error("Formato invalido: usa numeros separados por coma (ej: 1,5,12,...)")
+            st.stop()
+
+        if len(winning_nums) != 20:
+            st.error(f"Se necesitan 20 numeros, se ingresaron {len(winning_nums)}.")
+            st.stop()
+
+        if not all(1 <= n <= 80 for n in winning_nums):
+            st.error("Los numeros deben estar en el rango 1-80.")
+            st.stop()
+
+        if len(set(winning_nums)) != 20:
+            st.error("Los numeros deben ser unicos.")
+            st.stop()
+
+        results, summary = verify_winning_numbers(tickets, winning_nums)
+
+        st.subheader("Resumen de Verificacion")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Mejor Aciertos", f"{summary['best_aciertos']}/10")
+        with col2:
+            st.metric("Total Aciertos", summary["total_matches"])
+        with col3:
+            avg = summary["total_matches"] / summary["total_tickets"] if summary["total_tickets"] else 0
+            st.metric("Promedio", f"{avg:.1f}")
+
+        st.subheader("Distribucion de Aciertos")
+        dist_cols = st.columns(6)
+        for i, (tier, count) in enumerate(summary["distribution"].items()):
+            with dist_cols[i]:
+                st.metric(f"{tier} aciertos", count)
+
+        st.subheader("Resultados por Volante")
+
         for vol_idx, volante in enumerate(volantes):
-            download_lines.append(f"--- VOLANTE #{vol_idx + 1} (RD${COST_PER_VOLANTE}) ---")
-            for play_idx, ticket in enumerate(volante):
-                nums_str = ",".join(f"{n:02d}" for n in ticket)
-                download_lines.append(f"  Jugada {play_idx + 1}: {nums_str}")
-            download_lines.append("")
+            volante_results = [r for r in results if r["ticket"] in volante]
+            best_in_vol = max(r["aciertos"] for r in volante_results) if volante_results else 0
+            with st.expander(f"Volante #{vol_idx + 1} — Mejor: {best_in_vol} aciertos"):
+                for r in volante_results:
+                    ticket_str = ", ".join(f"{n:02d}" for n in r["ticket"])
+                    matching_str = ", ".join(f"{n:02d}" for n in r["matching_numbers"])
 
-        download_lines.append("=" * 60)
-        download_lines.append("Generado por SuperKinoTV — Analisis Determinista")
-        download_lines.append("=" * 60)
+                    if r["aciertos"] >= 7:
+                        icon = "🟢"
+                    elif r["aciertos"] >= 5:
+                        icon = "🟡"
+                    else:
+                        icon = "⚪"
 
-        download_text = "\n".join(download_lines)
-
-        st.download_button(
-            label=":material/download: Descargar jugadas (.txt)",
-            data=download_text,
-            file_name=f"superkino_jugadas_{datetime.now().strftime('%Y%m%d_%H%M')}.txt",
-            mime="text/plain",
-            type="primary",
-        )
-
-        # Verification against winning numbers
-        st.divider()
-        st.subheader(":material/verified: Verificar Contra Numeros Ganadores")
-        st.caption("Ingresa los 20 numeros ganadores para verificar aciertos en tus boletos.")
-
-        winning_input = st.text_area(
-            "Numeros ganadores (20 numeros separados por coma)",
-            placeholder="01,05,12,18,23,25,30,35,40,44,50,52,55,57,59,61,63,70,75,80",
-            help="Ingresa exactamente 20 numeros del 1 al 80, separados por coma.",
-            key="winning_numbers_input",
-        )
-
-        if st.button("Verificar Aciertos", type="primary", key="verify_btn"):
-            try:
-                winning_nums = [int(n.strip()) for n in winning_input.split(",")]
-            except ValueError:
-                st.error("Formato invalido: usa numeros separados por coma (ej: 1,5,12,...)")
-                st.stop()
-
-            if len(winning_nums) != 20:
-                st.error(f"Se necesitan 20 numeros, se ingresaron {len(winning_nums)}.")
-                st.stop()
-
-            if not all(1 <= n <= 80 for n in winning_nums):
-                st.error("Los numeros deben estar en el rango 1-80.")
-                st.stop()
-
-            if len(set(winning_nums)) != 20:
-                st.error("Los numeros deben ser unicos.")
-                st.stop()
-
-            results, summary = verify_winning_numbers(tickets, winning_nums)
-
-            # Summary metrics
-            st.subheader("Resumen de Verificacion")
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Mejor Aciertos", f"{summary['best_aciertos']}/10")
-            with col2:
-                st.metric("Total Aciertos", summary["total_matches"])
-            with col3:
-                avg = summary["total_matches"] / summary["total_tickets"] if summary["total_tickets"] else 0
-                st.metric("Promedio", f"{avg:.1f}")
-
-            # Distribution
-            st.subheader("Distribucion de Aciertos")
-            dist_cols = st.columns(6)
-            for i, (tier, count) in enumerate(summary["distribution"].items()):
-                with dist_cols[i]:
-                    st.metric(f"{tier} aciertos", count)
-
-            # Detailed results per volante
-            st.subheader("Resultados por Volante")
-
-            for vol_idx, volante in enumerate(volantes):
-                volante_results = [r for r in results if r["ticket"] in volante]
-                best_in_vol = max(r["aciertos"] for r in volante_results) if volante_results else 0
-                with st.expander(f"Volante #{vol_idx + 1} — Mejor: {best_in_vol} aciertos"):
-                    for r in volante_results:
-                        ticket_str = ", ".join(f"{n:02d}" for n in r["ticket"])
-                        matching_str = ", ".join(f"{n:02d}" for n in r["matching_numbers"])
-
-                        if r["aciertos"] >= 7:
-                            color = "🟢"
-                        elif r["aciertos"] >= 5:
-                            color = "🟡"
-                        else:
-                            color = "⚪"
-
-                        st.write(f"{color} **{r['aciertos']}/10** — {ticket_str}")
-                        if r["matching_numbers"]:
-                            st.caption(f"   Aciertos: {matching_str}")
+                    st.write(f"{icon} **{r['aciertos']}/10** — {ticket_str}")
+                    if r["matching_numbers"]:
+                        st.caption(f"   Aciertos: {matching_str}")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
