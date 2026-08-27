@@ -498,7 +498,7 @@ def verify_winning_numbers(
     best_tickets = [r for r in results if r["aciertos"] == best]
     
     distribution = {}
-    for n in range(10, 4, -1):
+    for n in range(5, 11):
         distribution[f"{n} aciertos"] = aciertos_counts.count(n)
     
     summary = {
