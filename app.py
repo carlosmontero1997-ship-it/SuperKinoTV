@@ -685,33 +685,73 @@ def render_tab_pool(draws: List[Draw], config: Dict):
     # Generate pool
     pool, band_counts = generate_dynamic_pool(draws, window, pool_size, band_dist)
 
-    # Pool display
+    # Part A: Pool number display with band color coding (D-08)
     st.subheader(f"Pool Dinamico — {len(pool)} Numeros")
+    st.caption("Numeros del pool con indicador de franja: Baja=azul, Media=amarillo, Alta=rojo.")
 
-    # Display pool as a nice grid
     cols = st.columns(10)
     for i, num in enumerate(pool):
         col = cols[i % 10]
         with col:
             if num in BAND_LOW:
-                st.metric(label=f"N{num}", value=num, delta="Baja", delta_color="off")
+                st.metric(
+                    label=f"{num:02d}",
+                    value=num,
+                    delta="Baja",
+                    delta_color="inverse",
+                )
             elif num in BAND_MID:
-                st.metric(label=f"N{num}", value=num, delta="Media", delta_color="off")
+                st.metric(
+                    label=f"{num:02d}",
+                    value=num,
+                    delta="Media",
+                    delta_color="off",
+                )
             else:
-                st.metric(label=f"N{num}", value=num, delta="Alta", delta_color="off")
+                st.metric(
+                    label=f"{num:02d}",
+                    value=num,
+                    delta="Alta",
+                    delta_color="normal",
+                )
 
     st.divider()
 
-    # Band metrics
+    # Part B: Band metrics matching sidebar distribution (D-07)
     st.subheader("Metricas por Franja")
+    st.caption(
+        f"Distribucion configurada: Baja={band_dist[0]}, Media={band_dist[1]}, "
+        f"Alta={band_dist[2]} (total={sum(band_dist)})"
+    )
 
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("Baja (01-26)", band_counts["Baja (01-26)"])
+        actual_baja = band_counts.get("Baja (01-26)", 0)
+        delta_baja = actual_baja - band_dist[0]
+        st.metric(
+            "Baja (01-26)",
+            actual_baja,
+            delta=f"{delta_baja:+d} vs configurado" if delta_baja != 0 else "Correcto",
+            delta_color="inverse" if delta_baja < 0 else ("normal" if delta_baja > 0 else "off"),
+        )
     with col2:
-        st.metric("Media (27-54)", band_counts["Media (27-54)"])
+        actual_media = band_counts.get("Media (27-54)", 0)
+        delta_media = actual_media - band_dist[1]
+        st.metric(
+            "Media (27-54)",
+            actual_media,
+            delta=f"{delta_media:+d} vs configurado" if delta_media != 0 else "Correcto",
+            delta_color="inverse" if delta_media < 0 else ("normal" if delta_media > 0 else "off"),
+        )
     with col3:
-        st.metric("Alta (55-80)", band_counts["Alta (55-80)"])
+        actual_alta = band_counts.get("Alta (55-80)", 0)
+        delta_alta = actual_alta - band_dist[2]
+        st.metric(
+            "Alta (55-80)",
+            actual_alta,
+            delta=f"{delta_alta:+d} vs configurado" if delta_alta != 0 else "Correcto",
+            delta_color="inverse" if delta_alta < 0 else ("normal" if delta_alta > 0 else "off"),
+        )
 
     # Distribution bar
     dist_df = pd.DataFrame(
@@ -719,16 +759,69 @@ def render_tab_pool(draws: List[Draw], config: Dict):
     )
     st.bar_chart(dist_df.set_index("Franja"))
 
-    # Ranking table
-    st.subheader("Ranking de Numeros por Frecuencia + Co-ocurrencia")
-    ranked = compute_frequency_ranking(draws, window)
-    ranked_in_pool = [(n, s, f) for n, s, f in ranked if n in pool]
-    df_ranked = pd.DataFrame(
-        ranked_in_pool, columns=["Numero", "Score", "Frecuencia"]
+    st.divider()
+
+    # Part C: Full 80-number ranking table (D-09, D-10)
+    st.subheader("Ranking Completo de Numeros (80 numeros)")
+    st.caption(
+        "Score = frecuencia_normalizada + 0.3 * co-ocurrencia_normalizada. "
+        "Numeros en el pool estan marcados con asterisco."
     )
-    df_ranked.index = range(1, len(df_ranked) + 1)
-    df_ranked.index.name = "Rank"
+
+    ranked = compute_frequency_ranking(draws, window)
+    pool_set = set(pool)
+
+    ranked_rows = []
+    for rank_idx, (num, score, freq) in enumerate(ranked, 1):
+        in_pool = num in pool_set
+        ranked_rows.append({
+            "Rank": rank_idx,
+            "Numero": f"{num:02d}{'*' if in_pool else ''}",
+            "Score": round(score, 4),
+            "Frecuencia": freq,
+            "En_Pool": "Si" if in_pool else "No",
+        })
+
+    df_ranked = pd.DataFrame(ranked_rows)
+    df_ranked = df_ranked.set_index("Rank")
     st.dataframe(df_ranked, width="stretch")
+
+    pool_in_ranking = len([r for r in ranked_rows if r["En_Pool"] == "Si"])
+    st.caption(f"Numeros en pool: {pool_in_ranking} de {len(pool)} seleccionados aparecen en el top {len(pool)} del ranking.")
+
+    st.divider()
+
+    # Part D: Gap analysis context for pool numbers
+    st.subheader("Contexto de Brechas (Gap Analysis)")
+    st.caption("Cuantos sorteos desde la ultima aparicion de cada numero en el pool.")
+
+    gap_df = compute_gap_analysis(draws, window)
+    gap_pool = gap_df[gap_df["Numero"].isin(pool_set)].copy()
+    gap_pool = gap_pool.sort_values("Gap", ascending=False).reset_index(drop=True)
+    gap_pool.index = range(1, len(gap_pool) + 1)
+    gap_pool.index.name = "Rank"
+
+    st.dataframe(gap_pool, width="stretch")
+
+    cold_threshold = window // 3
+    cold_in_pool = len(gap_pool[gap_pool["Gap"] > cold_threshold])
+    hot_in_pool = len(gap_pool[gap_pool["Gap"] <= cold_threshold])
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric(
+            "Numeros Frios en Pool",
+            cold_in_pool,
+            delta=f"gap > {cold_threshold} sorteos",
+            delta_color="normal",
+        )
+    with col2:
+        st.metric(
+            "Numeros Calientes en Pool",
+            hot_in_pool,
+            delta=f"gap <= {cold_threshold} sorteos",
+            delta_color="inverse",
+        )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
