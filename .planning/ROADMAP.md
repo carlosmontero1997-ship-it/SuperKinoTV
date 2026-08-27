@@ -69,7 +69,10 @@ Plans:
 
 **Requirements:** BT-01, BT-02, BT-03, BT-04, BT-05
 
-**Plans:** pending
+**Plans:** 1 plan
+
+Plans:
+- [ ] 06-01-PLAN.md — Implement walk-forward backtesting engine, hypergeometric/Monte Carlo baselines, temperature integration, and Backtesting tab UI
 
 **Success Criteria:**
 1. Walk-forward simulation runs: train on N draws, test on next, slide forward
