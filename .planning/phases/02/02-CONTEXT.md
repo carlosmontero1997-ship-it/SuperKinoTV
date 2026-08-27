@@ -1,94 +1,107 @@
-# Phase 2: Streamlit UI — Context Decisions
+# Phase 2: Analysis Matrices & Pool Generation — Context
 
-## Domain
-This phase implements the Streamlit user interface layer for SuperKino (Dominican Republic Keno) lottery analysis application. It provides the web-based UI for data input, analysis, number generation, and simulator execution. All UI elements are driven by deterministic Python logic without LLM-generated interfaces.
+**Gathered:** 2026-08-27
+**Status:** Ready for planning
 
-## Core Value
-Deterministic Streamlit UI for lottery analysis — all visual elements, controls, and interactions are implemented in Python with full determinism, no model-based UI generation.
+<domain>
+## Phase Boundary
 
-## Decisions Captured
+Display intermediate frequency matrices (100×20 and 10×10) and generate a ranked dynamic pool from statistical analysis. This phase builds on the data ingestion layer (Phase 1) and provides the analytical foundation for ticket generation (Phase 3).
 
-### UI Architecture
-- **5-page Streamlit app** with clear separation of concerns:
-  - Page 1: Home — dashboard overview, quick data upload
-  - Page 2: Historial — historical draw table, quality report, export
-  - Page 3: Analisis — matrix displays, slider controls, frequency analysis
-  - Page 4: Combinaciones — wheeling algorithm output, volante generation
-  - Page 5: Simulador — walk-forward backtest, hypergeometric comparison
+</domain>
 
-### Page Structure
-- **Home.py**: Dashboard overview, key statistics, quick data upload/paste, summary metrics
-- **0_Historial.py**: Historical draw table with search/filter, quality report generation, data export functionality, upload validation feedback
-- **1_Analisis.py**: Slider controls (ventana móvil, pool size, boletos count), distribution franja selectors (Baja/Media/Alta), mobile matrix 100×20 display, positional matrix 10×10 (C1=B1-B2, ..., C10=B19-B20), frequency calculations
-- **2_Combinaciones.py**: Wheeling algorithm output, 3 juegas per volante, RD$75 per volante, dynamic pool generation from frequency ranking, strict ascending number order within each ticket, 0 duplicated/permuted tickets guarantee
-- **3_Simulador.py**: Walk-forward backtest execution, hypergeometric reference comparison, user results vs random baseline visualization, temperature parameter control T ∈ [0.05, 2.0]
+<decisions>
+## Implementation Decisions
 
-### Sidebar Controls (Phase 1 decisions carried forward)
-- **Ventana móvil slider**: Max 100 sorteos retroactivos desde sorteo seleccionado
-- **Tamaño pool dinámico slider**: 15-30 números, valor por defecto 20
-- **Cantidad de boletos slider**: 6-30 boletos, valor por defecto 18
-- **Distribución por franja**: 
-  - 4-3-3 (Baja 01-26, Media 27-54, Alta 55-80)
-  - 3-4-3
-  - 3-3-4
-  - Personalizada (manual selection)
+### Matrix Display
+- **D-01:** 100×20 intermediate matrix displays all draws with 20 sorted positions — each row is one draw, columns are positions 1-20
+- **D-02:** 10×10 positional frequency matrix groups numbers by adjacent lane pairs (C1=B1-B2, C2=B3-B4, ..., C10=B19-B20)
+- **D-03:** Matrix displayed using `st.dataframe` with appropriate formatting for readability
+- **D-04:** Color coding: cells with presence highlighted, empty cells neutral
 
-### UI Determinism Constraints
-- **0 numbers outside the dynamic pool**: All generated numbers must come from the dynamically ranked pool
-- **Strict ascending order**: Numbers always sorted menor a mayor within each ticket
-- **0 duplicated/permuted tickets**: Each volante must have unique, non-permuted combinations
-- **Honest statistics**: Theoretical floors always visible in output
-- **Random baseline comparison**: Mandatory comparison against random expectation in all displays
-- **Temperature parameter**: T ∈ [0.05, 2.0] visible and controllable in simulator
+### Pool Generation
+- **D-05:** Dynamic pool generated from deduplicated frequency + co-occurrence ranking
+- **D-06:** Pool size controlled by sidebar slider (15-30, default 20) — already implemented in Phase 1
+- **D-07:** Band distribution (Baja/Media/Alta) enforced on pool — counts must match sidebar configuration
+- **D-08:** Pool numbers sorted ascending, displayed with band color coding (Baja=blue, Media=yellow, Alta=red)
 
-### Data Flow
-1. **Input**: Upload .txt/.csv file or paste historial directly (format: DD/MM/YYYY,N1,N2,...,N20)
-2. **Validation**: Format validation, range 1-80, exactly 20 numbers per line
-3. **Processing**: Ascending sort, mobile matrix 100×20, positional matrix 10×10
-4. **Analysis**: Gap statistics, frequency calculations, lift computations
-5. **Generation**: Temperature-controlled softmax, dynamic pool ranking, wheeling algorithm
-6. **Output**: Streamlit display with all results, comparisons, and export options
+### Statistical Analysis
+- **D-09:** Frequency analysis shows appearance count per number across window
+- **D-10:** Co-occurrence analysis shows pair frequency (how often two numbers appear together)
+- **D-11:** Gap analysis shows number of draws since each number last appeared
 
-### UI-Code Integration
-- **Core layer** (`superkino/core/`): Pure Python analysis, no Streamlit imports
-- **UI layer** (`superkino/app/`): Streamlit-specific components, depends on core layer
-- **Data persistence**: SQLite (`data/superkino.db`) for computed results, re-seeded from source data
-- **Entry point**: `streamlit run superkino/app/Home.py`
+### OpenCode's Discretion
+- Exact matrix cell formatting (font size, padding)
+- Frequency table layout (single table vs split by band)
+- Pool display format (numbered list vs grid vs badge)
+- Tab layout within Matrices Intermedias
 
-### Key UI Components
-- **Plotly visualizations**: Interactive charts in Analisis and Simulador pages
-- **Slider controls**: Range inputs for ventana móvil, pool size, boletos count
-- **Distribution franja selectors**: Manual selection of Baja/Media/Alta number distribution
-- **Table displays**: Historical draws, frequency matrices, generated combinations
-- **Export functionality**: Download generated tickets as .txt file
-- **Quality report**: Generated analysis summary with statistics
+</decisions>
 
-### Canonical References
-- `.planning/codebase/STACK.md` — Python 3.11+, Streamlit 1.35.0, pandas, numpy, scipy, plotly
-- `.planning/codebase/ARCHITECTURE.md` — Core/UI layering strategy, data flow
-- `.planning/codebase/STRUCTURE.md` — Package hierarchy, page locations
-- `.planning/codebase/INTEGRATIONS.md` — Streamlit + SQLite integration, database re-seeding
-- `.planning/codebase/CONVENTIONS.md` — Streamlit naming conventions, snake_case for functions/variables
-- `.planning/codebase/TESTING.md` — Streamlit test framework, pytest for core modules
-- `.planning/codebase/CONCERNS.md` — UI performance, data quality, numerical stability concerns
+<specifics>
+## Specific Ideas
 
-### Open Questions / Deferred
-- **Temperature parameter display**: Optimal way to show and control T ∈ [0.05, 2.0] in UI
-- **Database re-seeding**: Frequency and UX for re-seeding from SuperKinoTV.txt
-- **User result comparison**: Whether to include in core module or UI layer
-- **Extended number ranges**: Visualization beyond 1-80 if needed
-- **Mobile responsiveness**: Streamlit page layout for different screen sizes
-- **Download format**: .txt export format for generated tickets (beyond 3 juegas/volante)
+- The user is Dominican and works with Keno 20/80 lottery data — all UI text in Spanish
+- Matrix display should be scannable — user wants to quickly identify patterns
+- Pool generation should feel "smart" — not just top-N by frequency, but considers co-occurrence
+- Band distribution enforcement ensures pool matches user's configured Baja/Media/Alta split
+- Window slider (from Phase 1) controls how many historical draws are analyzed
 
-### Decisions Carried from Phase 1
-- Data ingestion format: `DD/MM/YYYY,N1,...,N20` with ascending sort
-- Validation: format, range 1-80, count 20 per line
-- Mobile matrix 100×20 and positional matrix 10×10
-- Temperature-controlled generation T ∈ [0.05, 2.0]
-- Wheeling algorithm: 3 juegas/volante, RD$75, ascending order, 0 duplicates
-- Sidebar controls: ventana móvil max 100, pool 15-30, boletos 6-30, franja distribution
+</specifics>
 
-## Next Steps
-- Proceed to `/gsd-discuss-phase 3` for Quality & Polish phase
-- Or capture additional UI design decisions for CONTEXT.md
-- Planning Phase 2 will use this CONTEXT.md as context for task decomposition
+<canonical_refs>
+## Canonical References
+
+**Downstream agents MUST read these before planning or implementing.**
+
+### Requirements
+- `.planning/REQUIREMENTS.md` — MATX-01, MATX-02, POOL-01, POOL-02
+
+### Architecture & Conventions
+- `.planning/PROJECT.md` — Project context, constraints
+- `app.py` — Current implementation with Phase 1 data ingestion layer
+
+### Existing Implementation
+- `app.py:render_tab_matrices()` — Current matrix tab (needs enhancement)
+- `app.py:render_tab_pool()` — Current pool tab (needs enhancement)
+- `app.py:generate_dynamic_pool()` — Current pool generation algorithm
+
+</canonical_refs>
+
+<code_context>
+## Existing Code Insights
+
+### Reusable Assets
+- `generate_dynamic_pool()` in app.py — Already implements frequency-based pool generation
+- `render_tab_matrices()` in app.py — Current matrix rendering (100×20 display)
+- `render_tab_pool()` in app.py — Current pool display with band metrics
+- `Draw` dataclass — Contains date_iso and numbers tuple
+- Session state persistence from Phase 1 — draws available across tabs
+
+### Established Patterns
+- Streamlit `st.dataframe` for tabular data
+- `st.metric` for summary statistics
+- `st.expander` for detailed views
+- Band color coding (Baja=blue, Media=yellow, Alta=red) from Phase 1
+
+### Integration Points
+- Data flows from `st.session_state.draws` (Phase 1) → matrix analysis → pool generation
+- Sidebar config (window, pool_size, band_dist) controls analysis parameters
+- Pool output feeds into Phase 3 (wheeling & volantes)
+
+</code_context>
+
+<deferred>
+## Deferred Ideas
+
+- Walk-forward backtesting simulator — v2 requirement ENH-03
+- Heatmap visualization of presence matrix — v2 requirement ENH-01
+- Temperature parameter control T ∈ [0.05, 2.0] — v2 requirement
+- SQLite persistence for computed results — out of scope (in-memory session state)
+
+</deferred>
+
+---
+
+*Phase: 02-keno-v1.1*
+*Context gathered: 2026-08-27*
