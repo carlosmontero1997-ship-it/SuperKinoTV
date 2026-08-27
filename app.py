@@ -142,13 +142,17 @@ def get_draws_from_input(uploaded_file, text_area: str) -> Tuple[List[Draw], Lis
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def compute_intermediate_matrix(draws: List[Draw], window: int) -> pd.DataFrame:
-    """100x20 intermediate matrix: each row is a draw, columns are sorted positions."""
+    """100x20 intermediate matrix: each row is a draw, columns are sorted positions.
+    
+    S1 = most recent draw, S2 = second most recent, etc.
+    """
     subset = draws[-window:] if len(draws) >= window else draws
+    subset_reversed = list(reversed(subset))  # S1 = most recent
     rows = []
-    for d in subset:
+    for d in subset_reversed:
         rows.append(list(d.numbers))
     df = pd.DataFrame(rows, columns=[f"P{i+1}" for i in range(20)])
-    df.index = [f"S{i+1}" for i in range(len(subset))]
+    df.index = [f"S{i+1}" for i in range(len(subset_reversed))]
     return df
 
 
