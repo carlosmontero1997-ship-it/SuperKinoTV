@@ -3,7 +3,7 @@
 ## Current Status
 - Project: SuperKinoTV v1.1
 - Milestone: v1.1 Keno Analysis & Wheeling
-- Current Phase: Phase 1 — Data Ingestion & Controls
+- Current Phase: Phase 2 — Analysis Matrices & Pool Generation (planned)
 - Codebase: Brownfield (v1.0 shipped, 5-page Streamlit app)
 - Git: Initialized
 
