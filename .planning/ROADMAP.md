@@ -3,7 +3,7 @@
 ## Milestones
 
 - ✅ **v1.0 MVP** — Phases 1-4 (shipped 2026-08-26)
-- ◆ **v1.1 Keno Analysis & Wheeling** — Phases 1-3 (current)
+- ◆ **v1.1 Keno Analysis & Wheeling** — Phases 1-4 (current)
 
 ## Phases
 
@@ -18,7 +18,7 @@
 </details>
 
 <details open>
-<summary>◆ v1.1 Keno Analysis & Wheeling (Phases 1-3) — CURRENT</summary>
+<summary>◆ v1.1 Keno Analysis & Wheeling (Phases 1-4) — CURRENT</summary>
 
 ### Phase 1: Data Ingestion & Controls ✅
 
@@ -61,11 +61,13 @@ Plans:
 
 **UI hint:** yes
 
-### Phase 3: Wheeling, Volantes & Ticket Generation ✅
+### Phase 3: Wheeling, Volantes & Ticket Verification ✅
 
-**Goal:** Generate deterministically reduced ticket sets organized into physical volantes with download capability.
+**Goal:** Generate deterministically reduced ticket sets, organize into physical volantes, and verify against winning numbers.
 
-**Requirements:** TICK-01 through TICK-05
+**Requirements:** TICK-01 through TICK-06
+
+**Plans:** pending
 
 **Success Criteria:**
 1. Wheeling algorithm produces deterministic reduced combinations from pool
@@ -73,6 +75,24 @@ Plans:
 3. Strict blindaje enforced: 0 out-of-pool numbers, ascending sort, 0 duplicates
 4. Download button exports all generated tickets as .txt file
 5. All tickets are unique (no permutations or duplicates)
+6. User can input winning numbers and see aciertos (matches) per ticket with prize calculation
+
+**UI hint:** yes
+
+### Phase 4: Walk-Forward Backtesting
+
+**Goal:** Execute walk-forward backtest comparing user's wheeling strategy against random baseline.
+
+**Requirements:** BT-01 through BT-05
+
+**Plans:** pending
+
+**Success Criteria:**
+1. Walk-forward simulation: train on N draws, test on next draw, slide forward
+2. User's strategy performance tracked across all test periods
+3. Random baseline (hypergeometric) comparison displayed
+4. Temperature parameter T controls exploration vs exploitation
+5. Results visualization: cumulative aciertos, hit rate, ROI comparison
 
 **UI hint:** yes
 
@@ -83,4 +103,4 @@ Plans:
 No backlog items — all v1.1 phases defined.
 
 ---
-*Last updated: 2026-08-26 after v1.1 initialization*
+*Last updated: 2026-08-27 after Phase 3 verification*

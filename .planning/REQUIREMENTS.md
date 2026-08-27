@@ -37,6 +37,15 @@
 - [ ] **TICK-03**: Display cost indicator (RD$75 per volante)
 - [ ] **TICK-04**: Enforce strict blindaje: 0 numbers outside pool, ascending sort, 0 duplicates
 - [ ] **TICK-05**: Provide .txt download button for generated tickets
+- [ ] **TICK-06**: Allow user to input winning numbers and verify aciertos (matches) per ticket
+
+### Backtesting
+
+- [ ] **BT-01**: Walk-forward simulation: train on N draws, test on next draw, slide forward
+- [ ] **BT-02**: Track user's strategy performance across all test periods
+- [ ] **BT-03**: Compare against random baseline (hypergeometric distribution)
+- [ ] **BT-04**: Temperature parameter T controls exploration vs exploitation
+- [ ] **BT-05**: Visualize results: cumulative aciertos, hit rate, ROI comparison
 
 ## v2 Requirements
 
@@ -80,6 +89,12 @@
 | TICK-03 | Phase 3 | Pending |
 | TICK-04 | Phase 3 | Pending |
 | TICK-05 | Phase 3 | Pending |
+| TICK-06 | Phase 3 | Pending |
+| BT-01 | Phase 4 | Pending |
+| BT-02 | Phase 4 | Pending |
+| BT-03 | Phase 4 | Pending |
+| BT-04 | Phase 4 | Pending |
+| BT-05 | Phase 4 | Pending |
 
 **Coverage:**
 - v1 requirements: 18 total
