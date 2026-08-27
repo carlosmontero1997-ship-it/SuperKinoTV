@@ -29,18 +29,18 @@
 
 ### 🚧 v1.2 Backtesting & Band Distribution (Phases 4-7) — CURRENT
 
-#### Phase 4: Matrix Ordering Fix
+#### Phase 4: Matrix Ordering Fix ✅
 
 **Goal:** Ensure intermediate matrix displays S1 as most recent draw and always uses the 100 most recent draws available.
 
 **Requirements:** MATX-03, MATX-04
 
-**Plans:** pending
+**Plans:** Already implemented (no plans needed)
 
 **Success Criteria:**
-1. S1 is the top row (most recent draw) in intermediate matrix
-2. Matrix always uses up to 100 most recent draws (or all available if <100)
-3. Row numbering is consistent across the app
+1. S1 is the top row (most recent draw) in intermediate matrix ✓
+2. Matrix always uses up to 100 most recent draws (or all available if <100) ✓
+3. Row numbering is consistent across the app ✓
 
 **UI hint:** no
 
