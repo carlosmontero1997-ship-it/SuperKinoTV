@@ -322,8 +322,6 @@ def wheeling_reduction(
             # Try swapping one element
             for alt in pool_sorted:
                 if alt not in base:
-                    new_ticket = tuple(sorted((alt,) + tuple(x for x in base if True)))
-                    # Replace the smallest with alt
                     new_ticket = tuple(sorted(list(base[:-1]) + [alt]))
                     if new_ticket not in candidates and len(new_ticket) == ticket_size:
                         candidates.append(new_ticket)
@@ -429,8 +427,8 @@ def render_sidebar(n_draws: int) -> Dict:
         max_value=30,
         value=20,
         help="Cantidad de numeros en el pool generado automaticamente.",
+        key="tamano_del_pool_dinamico",
         on_change=_recalc_bands_on_pool_change,
-        args=(pool_size,),
     )
 
     # --- Ticket quantity (CTRL-03) ---
@@ -514,12 +512,13 @@ def render_sidebar(n_draws: int) -> Dict:
     }
 
 
-def _recalc_bands_on_pool_change(new_pool: int) -> None:
+def _recalc_bands_on_pool_change() -> None:
     """D-08: Recalculate band values proportionally when pool_size changes.
 
     Called via on_change callback on the pool size slider.
-    Uses st.session_state directly since callback runs before widget rerender.
+    Reads new pool value from st.session_state (not callback args).
     """
+    new_pool = st.session_state.get("tamano_del_pool_dinamico", 20)
     prev_pool = st.session_state.get("_prev_pool_size", new_pool)
     if new_pool == prev_pool:
         return
@@ -540,11 +539,6 @@ def _recalc_bands_on_pool_change(new_pool: int) -> None:
         st.session_state["_band_baja"] = new_baja
         st.session_state["_band_media"] = new_media
         st.session_state["_band_alta"] = new_alta
-    else:
-        # First load with no prior values — set proportional defaults
-        st.session_state["_band_baja"] = max(1, round(new_pool * 26 / 80))
-        st.session_state["_band_media"] = max(1, round(new_pool * 28 / 80))
-        st.session_state["_band_alta"] = new_pool - st.session_state["_band_baja"] - st.session_state["_band_media"]
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
