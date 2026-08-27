@@ -47,6 +47,12 @@ Plans:
 
 **Requirements:** MATX-01, MATX-02, POOL-01, POOL-02
 
+**Plans:** 2 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — Matrix tab: conditional formatting, gap analysis, positional frequency totals
+- [ ] 02-02-PLAN.md — Pool tab: full 80-number ranking, band colors, gap context, co-occurrence display
+
 **Success Criteria:**
 1. 100×20 intermediate matrix displays all draws with 20 sorted positions
 2. 10×10 positional frequency matrix groups numbers by adjacent lane pairs
