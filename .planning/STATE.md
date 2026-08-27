@@ -21,6 +21,9 @@
 ## Known Issues
 - None
 
+## Quick Tasks Completed
+- 2026-08-27: volante-exact-aciertos — Distribucion de Aciertos exacta (5,6,7,8,9,10) en vez de acumulada (5+, 6+, ...)
+
 ## Decisions
 - Phase 5: Renamed "1-4-4-1" preset to "1-4-5" (tickets have 10 numbers across 3 bands, must sum to 10)
 - Phase 6: Temperature T uses softmax weighting on frequency scores for pool selection

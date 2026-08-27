@@ -498,8 +498,8 @@ def verify_winning_numbers(
     best_tickets = [r for r in results if r["aciertos"] == best]
     
     distribution = {}
-    for threshold in [5, 6, 7, 8, 9, 10]:
-        distribution[f"{threshold}+"] = len([a for a in aciertos_counts if a >= threshold])
+    for n in range(10, 4, -1):
+        distribution[f"{n} aciertos"] = aciertos_counts.count(n)
     
     summary = {
         "total_tickets": len(tickets),
@@ -2148,10 +2148,10 @@ def render_tab_tickets(draws: List[Draw], config: Dict):
             st.metric("Promedio", f"{avg:.1f}")
 
         st.subheader("Distribucion de Aciertos")
-        dist_cols = st.columns(6)
+        dist_cols = st.columns(len(summary["distribution"]))
         for i, (tier, count) in enumerate(summary["distribution"].items()):
             with dist_cols[i]:
-                st.metric(f"{tier} aciertos", count)
+                st.metric(tier, count)
 
         st.subheader("Resultados por Volante")
 
