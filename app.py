@@ -21,6 +21,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 import numpy as np
 import pandas as pd
 import streamlit as st
+from scipy import stats as sp_stats
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # CONFIGURATION
@@ -512,6 +513,252 @@ def verify_winning_numbers(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# BACKTESTING ENGINE (Phase 6: BT-01 through BT-05)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def compute_hypergeometric_baseline(
+    ticket_numbers: Tuple[int, ...],
+    drawn_numbers: Tuple[int, ...],
+    pool_size: int = 80,
+    draw_size: int = 20,
+) -> float:
+    """Compute exact hypergeometric probability of k successes.
+
+    Uses scipy.stats.hypergeom.pmf to compute P(X=k) where:
+    - X = number of ticket numbers that appear in drawn_numbers
+    - pool_size = total numbers (80)
+    - draw_size = numbers drawn per draw (20)
+    - M = len(ticket_numbers) = numbers the player picked (10)
+    """
+    k = len(set(ticket_numbers) & set(drawn_numbers))
+    M = len(ticket_numbers)
+    return sp_stats.hypergeom.pmf(k, pool_size, draw_size, M)
+
+
+def compute_hypergeometric_expected_hits(
+    ticket_numbers: Tuple[int, ...],
+    n_test_draws: int,
+    pool_size: int = 80,
+    draw_size: int = 20,
+) -> List[float]:
+    """Compute expected hits per test period using hypergeometric distribution.
+
+    For each possible k (0 to len(ticket_numbers)), compute P(k) * k.
+    Returns a list of expected aciertos per draw for a random player.
+    """
+    M = len(ticket_numbers)
+    expected_per_draw = sum(
+        sp_stats.hypergeom.pmf(k, pool_size, draw_size, M) * k
+        for k in range(M + 1)
+    )
+    return [expected_per_draw * n_test_draws]
+
+
+def run_monte_carlo_baseline(
+    ticket_numbers: Tuple[int, ...],
+    n_test_draws: int,
+    n_simulations: int = 1000,
+    pool_size: int = 80,
+    draw_size: int = 20,
+) -> Tuple[List[float], float]:
+    """Run Monte Carlo simulation for random baseline.
+
+    Each simulation draws n_test_draws random draws from pool_size.
+    Returns (avg_aciertos_per_draw_list, overall_avg_hit_rate).
+    """
+    rng = np.random.default_rng(42)
+    ticket_set = set(ticket_numbers)
+
+    # Track aciertos per test period across all simulations
+    all_aciertos = np.zeros(n_test_draws)
+
+    for _ in range(n_simulations):
+        for t in range(n_test_draws):
+            drawn = rng.choice(pool_size, size=draw_size, replace=False) + 1
+            drawn_set = set(drawn.tolist())
+            all_aciertos[t] += len(ticket_set & drawn_set)
+
+    avg_per_period = (all_aciertos / n_simulations).tolist()
+    overall_avg = float(np.sum(all_aciertos) / (n_simulations * max(n_test_draws, 1)))
+    return avg_per_period, overall_avg
+
+
+def apply_temperature_to_selection(
+    ranked_numbers: List[Tuple[int, float, int]],
+    temperature: float,
+    pool_size: int,
+    band_dist: Optional[Tuple[int, int, int]],
+) -> List[int]:
+    """Temperature-controlled pool generation using softmax weighting.
+
+    Converts frequency scores to selection probabilities via softmax with
+    temperature T. Low T = deterministic (top scores). High T = uniform.
+    """
+    if temperature >= 2.0:
+        # At T=2.0+, distribution approaches uniform — take top N
+        return [n for n, s, f in ranked_numbers[:pool_size]]
+
+    scores = np.array([s for _, s, _ in ranked_numbers], dtype=np.float64)
+
+    if band_dist is not None:
+        low_n, mid_n, high_n = band_dist
+        low_nums = [n for n, s, f in ranked_numbers if n in BAND_LOW]
+        mid_nums = [n for n, s, f in ranked_numbers if n in BAND_MID]
+        high_nums = [n for n, s, f in ranked_numbers if n in BAND_HIGH]
+
+        def _softmax_select(nums: List[int], count: int) -> List[int]:
+            if not nums or count <= 0:
+                return []
+            num_scores = []
+            for n in nums:
+                for ranked_n, s, f in ranked_numbers:
+                    if ranked_n == n:
+                        num_scores.append(s)
+                        break
+                else:
+                    num_scores.append(0.0)
+            arr = np.array(num_scores, dtype=np.float64)
+            arr = arr / max(temperature, 1e-8)
+            arr -= arr.max()  # numerical stability
+            probs = np.exp(arr)
+            probs /= probs.sum()
+            count = min(count, len(nums))
+            selected = np.random.default_rng(42).choice(
+                len(nums), size=count, replace=False, p=probs
+            )
+            return sorted(nums[i] for i in selected)
+
+        pool = []
+        pool.extend(_softmax_select(low_nums, low_n))
+        pool.extend(_softmax_select(mid_nums, mid_n))
+        pool.extend(_softmax_select(high_nums, high_n))
+
+        if len(pool) < pool_size:
+            remaining = [n for n, s, f in ranked_numbers if n not in pool]
+            pool.extend(remaining[: pool_size - len(pool)])
+
+        return sorted(pool[:pool_size])
+    else:
+        # No band constraint — softmax over all numbers
+        arr = scores / max(temperature, 1e-8)
+        arr -= arr.max()
+        probs = np.exp(arr)
+        probs /= probs.sum()
+        all_nums = [n for n, s, f in ranked_numbers]
+        selected = np.random.default_rng(42).choice(
+            len(all_nums), size=min(pool_size, len(all_nums)),
+            replace=False, p=probs,
+        )
+        return sorted(all_nums[i] for i in selected)
+
+
+def walk_forward_backtest(
+    draws: List[Draw],
+    config: Dict,
+    temperature: float = 1.0,
+    n_tickets: int = 18,
+    ticket_size: int = 10,
+    mc_simulations: int = 1000,
+) -> Dict:
+    """Walk-forward backtesting engine.
+
+    Train on N draws, test on next draw, slide forward by 1.
+    Compares user strategy against hypergeometric and Monte Carlo baselines.
+    """
+    training_window = config.get("window", 80)
+    pool_size = config.get("pool_size", 20)
+    band_dist = config.get("band_dist")
+
+    results = []
+    cumulative_aciertos = []
+    cumulative_hyper = []
+    cumulative_mc = []
+    total_aciertos = 0
+    total_hyper = 0.0
+    total_mc = 0.0
+
+    for start in range(0, len(draws) - training_window):
+        train_draws = draws[start: start + training_window]
+        test_draw = draws[start + training_window]
+
+        # Generate pool from training data
+        if temperature < 2.0:
+            ranked = compute_frequency_ranking(train_draws, training_window)
+            pool = apply_temperature_to_selection(
+                ranked, temperature, pool_size, band_dist
+            )
+        else:
+            pool, _ = generate_dynamic_pool(
+                train_draws, training_window, pool_size, band_dist
+            )
+
+        # Generate tickets via wheeling
+        tickets, errors, _ = wheeling_reduction(pool, n_tickets, ticket_size)
+
+        # Count aciertos for each ticket
+        test_numbers = set(test_draw.numbers)
+        best_aciertos = max(
+            (len(set(t) & test_numbers) for t in tickets), default=0
+        )
+
+        # Hypergeometric baseline
+        hyper_expected = 0.0
+        if tickets:
+            hyper_expected = compute_hypergeometric_expected_hits(
+                tickets[0], 1
+            )[0]
+
+        # Monte Carlo baseline for remaining test periods
+        remaining_test = len(draws) - (start + training_window + 1)
+        mc_avg = 0.0
+        if tickets and remaining_test > 0:
+            mc_period_avgs, _ = run_monte_carlo_baseline(
+                tickets[0], max(1, remaining_test), mc_simulations
+            )
+            mc_avg = mc_period_avgs[0] if mc_period_avgs else 0.0
+
+        total_aciertos += best_aciertos
+        total_hyper += hyper_expected
+        total_mc += mc_avg
+
+        cumulative_aciertos.append(total_aciertos)
+        cumulative_hyper.append(total_hyper)
+        cumulative_mc.append(total_mc)
+
+        results.append({
+            "test_draw_idx": start + training_window,
+            "test_draw": test_draw,
+            "train_window": (start, start + training_window),
+            "best_aciertos": best_aciertos,
+            "hyper_expected": hyper_expected,
+            "mc_avg_aciertos": mc_avg,
+            "tickets": tickets,
+        })
+
+    n_test_periods = len(results)
+    hit_rate_user = total_aciertos / max(n_test_periods, 1)
+    hit_rate_hyper = total_hyper / max(n_test_periods, 1)
+    hit_rate_mc = total_mc / max(n_test_periods, 1)
+
+    # Total cost: n_tickets volantes × n_test_periods × RD$75
+    n_volantes = math.ceil(n_tickets / 3)  # 3 plays per volante
+    total_cost = n_volantes * n_test_periods * COST_PER_VOLANTE
+
+    return {
+        "results": results,
+        "cumulative_aciertos": cumulative_aciertos,
+        "cumulative_hyper": cumulative_hyper,
+        "cumulative_mc": cumulative_mc,
+        "hit_rate_user": hit_rate_user,
+        "hit_rate_hyper": hit_rate_hyper,
+        "hit_rate_mc": hit_rate_mc,
+        "n_test_periods": n_test_periods,
+        "total_cost": total_cost,
+        "temperature": temperature,
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # SIDEBAR CONTROLS
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -667,6 +914,19 @@ def render_sidebar(n_draws: int) -> Dict:
     )
     uniform_mode = distribution_mode == "Uniforme"
 
+    # Phase 6: Temperature control
+    st.sidebar.divider()
+    st.sidebar.subheader("Control de Temperatura")
+    temperature = st.sidebar.slider(
+        "Temperatura T",
+        min_value=0.05,
+        max_value=2.0,
+        value=1.0,
+        step=0.05,
+        help="T baja = numeros frecuentes (determinista). T alta = distribucion uniforme (aleatorio). T=2.0 ≈ random.",
+        key="temperature_t",
+    )
+
     return {
         "window": window,
         "pool_size": pool_size,
@@ -677,6 +937,7 @@ def render_sidebar(n_draws: int) -> Dict:
         "ticket_band_valid": ticket_band_valid,
         "uniform_mode": uniform_mode,
         "selected_preset": selected_preset,
+        "temperature": temperature,
     }
 
 
