@@ -1683,6 +1683,189 @@ def render_tab_tickets(draws: List[Draw], config: Dict):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# TAB 4: BACKTESTING (Phase 6: BT-01 through BT-05)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def render_tab_backtesting(draws: List[Draw], config: Dict) -> None:
+    """Render walk-forward backtesting tab."""
+    st.header(":material/analytics: Backtesting Walk-Forward")
+    st.markdown(
+        "Simula el rendimiento de tu estrategia de wheeling contra una "
+        "linea base aleatoria usando validacion walk-forward."
+    )
+
+    # --- Parameters ---
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        train_window = st.slider(
+            "Ventana de entrenamiento",
+            min_value=20,
+            max_value=min(100, len(draws) - 2),
+            value=min(config.get("window", 80), len(draws) - 2),
+            help="Numero de sorteos para entrenar antes de cada prueba.",
+            key="bt_train_window",
+        )
+    with col2:
+        bt_temperature = st.slider(
+            "Temperatura T (backtesting)",
+            min_value=0.05,
+            max_value=2.0,
+            value=config.get("temperature", 1.0),
+            step=0.05,
+            help="Override de temperatura para backtesting. T baja = determinista, T alta = aleatorio.",
+            key="bt_temperature",
+        )
+    with col3:
+        n_tickets = st.slider(
+            "Boletos por periodo",
+            min_value=6,
+            max_value=30,
+            value=config.get("n_tickets", 18),
+            help="Cantidad de boletos generados en cada periodo de prueba.",
+            key="bt_n_tickets",
+        )
+
+    # Validation
+    n_test_periods = len(draws) - train_window - 1
+    if n_test_periods < 1:
+        st.error(
+            f"No hay suficientes sorteos para backtesting. "
+            f"Necesita al menos {train_window + 2} sorteos, "
+            f"tiene {len(draws)}."
+        )
+        return
+
+    st.info(
+        f"Periodos de prueba disponibles: **{n_test_periods}** "
+        f"(ventana={train_window}, sorteos totales={len(draws)})"
+    )
+
+    # --- Run ---
+    if st.button("Ejecutar Backtesting", key="bt_run", type="primary"):
+        with st.spinner("Ejecutando simulacion walk-forward..."):
+            bt_config = {**config, "window": train_window}
+            results = walk_forward_backtest(
+                draws, bt_config,
+                temperature=bt_temperature,
+                n_tickets=n_tickets,
+                ticket_size=10,
+            )
+            st.session_state["bt_results"] = results
+
+    results = st.session_state.get("bt_results")
+    if results is None:
+        st.info("Configure los parametros y presione 'Ejecutar Backtesting'.")
+        return
+
+    # --- Summary Metrics ---
+    st.subheader("Resumen de Resultados")
+    m1, m2, m3, m4 = st.columns(4)
+    with m1:
+        st.metric(
+            "Periodos de prueba",
+            f"{results['n_test_periods']}",
+        )
+    with m2:
+        st.metric(
+            "Tasa de acierto (tu estrategia)",
+            f"{results['hit_rate_user']:.1%}",
+        )
+    with m3:
+        st.metric(
+            "Tasa de acierto (hipergeometrica)",
+            f"{results['hit_rate_hyper']:.1%}",
+        )
+    with m4:
+        st.metric(
+            "Tasa de acierto (Monte Carlo)",
+            f"{results['hit_rate_mc']:.1%}",
+        )
+
+    # ROI calculation
+    total_cost = results["total_cost"]
+    total_aciertos = results["cumulative_aciertos"][-1] if results["cumulative_aciertos"] else 0
+    roi = (total_aciertos * COST_PER_VOLANTE - total_cost) / total_cost if total_cost > 0 else 0
+
+    r1, r2 = st.columns(2)
+    with r1:
+        st.metric(
+            "Costo total (RD$)",
+            f"RD${total_cost:,.0f}",
+        )
+    with r2:
+        st.metric(
+            "ROI estimado",
+            f"{roi:.1%}",
+            delta=f"{'Positivo' if roi > 0 else 'Negativo'}",
+            delta_color="normal" if roi > 0 else "inverse",
+        )
+
+    # --- Cumulative Aciertos Chart ---
+    st.subheader("Aciertos Acumulados")
+
+    chart_data = pd.DataFrame({
+        "Periodo": list(range(1, results["n_test_periods"] + 1)),
+        "Tu estrategia": results["cumulative_aciertos"],
+        "Hipergeometrica": results["cumulative_hyper"],
+        "Monte Carlo": results["cumulative_mc"],
+    })
+
+    st.line_chart(
+        chart_data.set_index("Periodo"),
+    )
+
+    # --- Temperature Effect ---
+    st.subheader("Efecto de la Temperatura")
+    st.markdown(
+        "Compara como diferentes valores de T afectan el rendimiento."
+    )
+
+    temp_values = [0.1, 0.5, 1.0, 1.5, 2.0]
+    temp_results = []
+    progress_bar = st.progress(0, text="Calculando efecto de temperatura...")
+
+    for i, t_val in enumerate(temp_values):
+        progress_bar.progress(
+            (i + 1) / len(temp_values),
+            text=f"Calculando T={t_val}..."
+        )
+        bt_config = {**config, "window": train_window}
+        t_result = walk_forward_backtest(
+            draws, bt_config,
+            temperature=t_val,
+            n_tickets=n_tickets,
+            ticket_size=10,
+        )
+        temp_results.append({
+            "T": t_val,
+            "Tasa de acierto": t_result["hit_rate_user"],
+            "Aciertos totales": t_result["cumulative_aciertos"][-1] if t_result["cumulative_aciertos"] else 0,
+        })
+
+    progress_bar.empty()
+
+    temp_df = pd.DataFrame(temp_results)
+    st.dataframe(temp_df, use_container_width=True, hide_index=True)
+
+    st.line_chart(
+        temp_df.set_index("T")[["Tasa de acierto"]],
+    )
+
+    # --- Per-period detail ---
+    with st.expander("Detalle por periodo de prueba"):
+        detail_data = []
+        for r in results["results"]:
+            detail_data.append({
+                "Sorteo": r["test_draw"].date_iso,
+                "Aciertos": r["best_aciertos"],
+                "Esperado (hiper)": f"{r['hyper_expected']:.2f}",
+                "Esperado (MC)": f"{r['mc_avg_aciertos']:.2f}",
+            })
+        detail_df = pd.DataFrame(detail_data)
+        st.dataframe(detail_df, use_container_width=True, hide_index=True)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # DATA INGESTION UI
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -1819,10 +2002,11 @@ def main():
         return
 
     # --- Tabs ---
-    tab1, tab2, tab3 = st.tabs([
+    tab1, tab2, tab3, tab4 = st.tabs([
         ":material/table_chart: Matrices Intermedias",
         ":material/query_stats: Pool Dinamico",
         ":material/style: Volantes & Reduccion Combinatoria",
+        ":material/analytics: Backtesting",
     ])
 
     with tab1:
@@ -1833,6 +2017,9 @@ def main():
 
     with tab3:
         render_tab_tickets(draws, config)
+
+    with tab4:
+        render_tab_backtesting(draws, config)
 
 
 if __name__ == "__main__":
