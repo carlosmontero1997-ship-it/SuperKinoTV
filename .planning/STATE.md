@@ -5,9 +5,10 @@
 - Milestone: v1.2 Backtesting & Band Distribution
 - Current Phase: Complete (all 4 phases done)
 - Codebase: Single app.py (2,747 lines)
-- Git: Initialized
+- Git: Pushed to master (30 commits, 2026-08-27)
 
 ## Recent Changes
+- v1.2 shipped to GitHub master (all 4 phases + quick fixes)
 - v1.1 shipped and archived (3 phases, 2026-08-26)
 - v1.2 milestone started
 - Phase 5 completed: Dynamic Band Distribution per Ticket (2026-08-27)
