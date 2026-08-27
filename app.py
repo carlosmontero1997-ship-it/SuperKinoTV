@@ -2410,6 +2410,11 @@ def render_tab_predictive(draws: List[Draw], config: Dict) -> None:
             st.session_state["pred_band"] = band_suggestion
             st.session_state["pred_tickets"] = ticket_recs
 
+            # Co-occurrence matrix — computed ONCE here (used by expander later).
+            cooc_matrix = compute_cooccurrence_matrix(draws, pred_window)
+            st.session_state["pred_cooc"] = cooc_matrix
+            st.session_state["pred_params_used"] = (pred_window, round(float(pred_temperature), 2))
+
     pred_scores = st.session_state.get("pred_scores")
     band_suggestion = st.session_state.get("pred_band")
     ticket_recs = st.session_state.get("pred_tickets")
@@ -2417,6 +2422,13 @@ def render_tab_predictive(draws: List[Draw], config: Dict) -> None:
     if pred_scores is None:
         st.info("Configure los parametros y presione 'Ejecutar Analisis Predictivo'.")
         return
+
+    # Stale-parameter detection — results shown from session_state until Run is pressed.
+    pred_params_used = st.session_state.get("pred_params_used")
+    if pred_params_used is not None:
+        current_pred = (pred_window, round(float(pred_temperature), 2))
+        if current_pred != pred_params_used:
+            st.caption("Parametros cambiados — presione Ejecutar Analisis Predictivo para actualizar los resultados.")
 
     # --- Dashboard Metrics ---
     st.subheader("Dashboard de Confianza")
@@ -2575,12 +2587,13 @@ def render_tab_predictive(draws: List[Draw], config: Dict) -> None:
 
     # --- Co-occurrence Heatmap ---
     with st.expander("Matriz de co-ocurrencia (top 20 numeros)", expanded=False):
-        cooc_matrix = compute_cooccurrence_matrix(draws, pred_window)
-        top20_nums = [item["number"] for item in pred_scores["number_scores"][:20]]
-        subset_cooc = cooc_matrix.loc[top20_nums, top20_nums]
-        st.dataframe(
-            subset_cooc.style.background_gradient(cmap="YlOrRd"),
-        )
+        cooc_matrix = st.session_state.get("pred_cooc")
+        if cooc_matrix is not None:
+            top20_nums = [item["number"] for item in pred_scores["number_scores"][:20]]
+            subset_cooc = cooc_matrix.loc[top20_nums, top20_nums]
+            st.dataframe(
+                subset_cooc.style.background_gradient(cmap="YlOrRd"),
+            )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
