@@ -1,3 +1,6 @@
 __pycache__/
 *.pyc
 *.pyo
+
+# Generated jugadas output
+superkino_jugadas_*.txt

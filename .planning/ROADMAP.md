@@ -89,10 +89,11 @@ Plans:
 
 **Requirements:** BT-06
 
-**Plans:** 1 plan
+**Plans:** 2 plans
 
 Plans:
 - [x] 07-01-PLAN.md — Implement predictive analysis engine, number scoring, distribution suggestions, and Predictive Analysis tab
+- [x] 07-02-PLAN.md — Gap closure: on-demand predictive/backtest computation (cache in session_state, no recompute on slider change)
 
 **Success Criteria:**
 1. Predictive analysis suggests optimal number combinations ✓
@@ -116,7 +117,7 @@ Plans:
 | 4. Matrix Ordering Fix | v1.2 | 0/1 | Not started | - |
 | 5. Band Distribution per Ticket | v1.2 | 1/1 | Complete | 2026-08-27 |
 | 6. Walk-Forward Backtesting | v1.2 | 1/1 | Complete | 2026-08-27 |
-| 7. Predictive Analysis | v1.2 | 1/1 | Complete | 2026-08-27 |
+| 7. Predictive Analysis | v1.2 | 2/2 | Complete | 2026-08-27 |
 
 ### Backlog
 

@@ -12,7 +12,7 @@
 - [x] **BT-03**: Comparar contra línea base aleatoria (distribución hipergeométrica + Monte Carlo) — validated in Phase 6
 - [x] **BT-04**: Parámetro de temperatura T controla exploración vs explotación — validated in Phase 6
 - [x] **BT-05**: Visualizar resultados: aciertos acumulados, tasa de acierto, comparación de ROI — validated in Phase 6
-- [ ] **BT-06**: Análisis predictivo para optimizar selección de números con distribuciones sugeridas y análisis inteligente
+- [x] **BT-06**: Análisis predictivo para optimizar selección de números con distribuciones sugeridas y análisis inteligente
 
 ### Distribución de Bandas por Boleto
 
@@ -42,7 +42,7 @@
 | BT-03 | Phase 6 | Completo |
 | BT-04 | Phase 6 | Completo |
 | BT-05 | Phase 6 | Completo |
-| BT-06 | Phase 7 | Pendiente |
+| BT-06 | Phase 7 | Completo |
 | BAND-01 | Phase 5 | Completo |
 | BAND-02 | Phase 5 | Completo |
 | BAND-03 | Phase 5 | Completo |
