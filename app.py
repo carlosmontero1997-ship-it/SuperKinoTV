@@ -2359,6 +2359,230 @@ def render_tab_backtesting(draws: List[Draw], config: Dict) -> None:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# TAB 5: PREDICTIVE ANALYSIS (Phase 7: BT-06)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+def render_tab_predictive(draws: List[Draw], config: Dict) -> None:
+    """Render predictive analysis tab with comprehensive intelligent analysis."""
+    st.header(":material/auto_awesome: Analisis Predictivo")
+    st.markdown(
+        "Analisis inteligente que combina frecuencia, gaps, co-ocurrencia, "
+        "temperatura, patrones temporales y tendencias de bandas para "
+        "sugerir los numeros optimos."
+    )
+
+    # --- Parameters ---
+    col1, col2 = st.columns(2)
+    with col1:
+        pred_window = st.slider(
+            "Ventana de analisis",
+            min_value=20,
+            max_value=min(100, len(draws)),
+            value=min(config.get("window", 80), len(draws)),
+            help="Numero de sorteos recientes para el analisis predictivo.",
+            key="pred_window",
+        )
+    with col2:
+        pred_temperature = st.slider(
+            "Temperatura T",
+            min_value=0.05,
+            max_value=2.0,
+            value=config.get("temperature", 1.0),
+            step=0.05,
+            help="T baja = numeros frecuentes (determinista). T alta = distribucion uniforme (aleatorio).",
+            key="pred_temperature",
+        )
+
+    # Validation
+    if len(draws) < 10:
+        st.error("Se necesitan al menos 10 sorteos para analisis predictivo.")
+        return
+
+    # --- Run Analysis ---
+    if st.button("Ejecutar Analisis Predictivo", key="pred_run", type="primary"):
+        with st.spinner("Calculando scores predictivos..."):
+            pred_scores = compute_predictive_scores(draws, pred_window, pred_temperature)
+            band_suggestion = suggest_band_distribution(draws, pred_window, pred_scores)
+            ticket_recs = recommend_tickets(draws, pred_scores, band_suggestion, config)
+            st.session_state["pred_scores"] = pred_scores
+            st.session_state["pred_band"] = band_suggestion
+            st.session_state["pred_tickets"] = ticket_recs
+
+    pred_scores = st.session_state.get("pred_scores")
+    band_suggestion = st.session_state.get("pred_band")
+    ticket_recs = st.session_state.get("pred_tickets")
+
+    if pred_scores is None:
+        st.info("Configure los parametros y presione 'Ejecutar Analisis Predictivo'.")
+        return
+
+    # --- Dashboard Metrics ---
+    st.subheader("Dashboard de Confianza")
+
+    # Top 5 numbers by score
+    top5 = sorted(pred_scores["number_scores"], key=lambda x: x["score"], reverse=True)[:5]
+    m1, m2, m3, m4, m5 = st.columns(5)
+    for i, (col, item) in enumerate(zip([m1, m2, m3, m4, m5], top5)):
+        with col:
+            st.metric(
+                f"Top {i + 1}",
+                f"{item['number']:02d}",
+                f"Score: {item['score']:.0f}",
+            )
+
+    # Band distribution suggestion
+    st.subheader("Sugerencia de Distribucion")
+    b1, b2, b3, b4 = st.columns(4)
+    with b1:
+        dist = band_suggestion["suggested_distribution"]
+        st.metric(
+            "Distribucion Sugerida",
+            f"{dist[0]}-{dist[1]}-{dist[2]}",
+            "Baja-Media-Alta",
+        )
+    with b2:
+        st.metric(
+            "Confianza",
+            f"{band_suggestion['confidence']:.0f}%",
+        )
+    with b3:
+        total_score = ticket_recs["total_score"]
+        st.metric(
+            "Score Promedio",
+            f"{total_score:.1f}",
+        )
+    with b4:
+        st.metric(
+            "Boletos Recomendados",
+            f"{len(ticket_recs['recommended_tickets'])}",
+        )
+
+    # --- Number Scoring Table ---
+    st.subheader("Scores por Numero")
+
+    scoring_data = []
+    for item in pred_scores["number_scores"]:
+        scoring_data.append({
+            "Numero": f"{item['number']:02d}",
+            "Score Total": f"{item['score']:.1f}",
+            "Frecuencia": f"{item['factors']['frequency']:.2f}",
+            "Gap": f"{item['factors']['gap']:.2f}",
+            "Co-ocurrencia": f"{item['factors']['cooccurrence']:.2f}",
+            "Recencia": f"{item['factors']['recency']:.2f}",
+            "Temporal": f"{item['factors']['temporal']:.2f}",
+            "Tendencia": f"{item['factors']['band_trend']:.2f}",
+        })
+
+    scoring_df = pd.DataFrame(scoring_data)
+
+    st.markdown("**Top 20 numeros por score:**")
+    st.dataframe(scoring_df.head(20), hide_index=True)
+
+    with st.expander("Ver todos los 80 numeros"):
+        st.dataframe(scoring_df, hide_index=True)
+
+    # --- Band Analysis Detail ---
+    st.subheader("Analisis por Franja")
+
+    with st.expander("Detalle de analisis por franja", expanded=False):
+        for band_name, band_data in band_suggestion["band_analysis"].items():
+            trend_icon = "📈" if band_data["trend"] == "up" else "📉" if band_data["trend"] == "down" else "➡️"
+            hot_cold = "🔥 Hot" if band_data["hot_cold"] == "hot" else "❄️ Cold" if band_data["hot_cold"] == "cold" else "⚖️ Neutral"
+            st.markdown(
+                f"**{band_name}**: Frecuencia {band_data['frequency']:.1%} "
+                f"| {trend_icon} {band_data['trend']} "
+                f"| {hot_cold}"
+            )
+
+        st.markdown("**Razonamiento:**")
+        st.markdown(band_suggestion["reasoning"])
+
+        if band_suggestion["alternative_distributions"]:
+            st.markdown("**Distribuciones alternativas:**")
+            alt_data = []
+            for alt in band_suggestion["alternative_distributions"]:
+                alt_data.append({
+                    "Distribucion": f"{alt['dist'][0]}-{alt['dist'][1]}-{alt['dist'][2]}",
+                    "Confianza": f"{alt['confidence']:.0f}%",
+                    "Razon": alt["reason"],
+                })
+            st.dataframe(pd.DataFrame(alt_data), hide_index=True)
+
+    # --- Temporal Patterns ---
+    st.subheader("Patrones Temporales")
+
+    with st.expander("Detalle de patrones temporales", expanded=False):
+        temporal = pred_scores["temporal_patterns"]
+
+        # Day of week patterns
+        st.markdown("**Frecuencia por dia de la semana:**")
+        day_names = ["Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado", "Domingo"]
+        for day_idx in range(7):
+            if day_idx in temporal["day_of_week_freq"]:
+                top3 = sorted(
+                    temporal["day_of_week_freq"][day_idx].items(),
+                    key=lambda x: x[1], reverse=True,
+                )[:3]
+                top3_str = ", ".join([f"{n:02d} ({f:.1%})" for n, f in top3])
+                st.markdown(f"- **{day_names[day_idx]}**: {top3_str}")
+
+        # Band cyclical patterns
+        st.markdown("**Patrones ciclicos:**")
+        for band, is_cyclical in temporal["band_cyclical"].items():
+            if is_cyclical:
+                st.markdown(f"- **{band}**: Patron ciclico detectado")
+
+        # Recent band shift
+        st.markdown("**Cambios recientes (ultimos 10 vs anteriores 10):**")
+        for band, shift in temporal["recent_band_shift"].items():
+            direction = "↑" if shift > 0 else "↓" if shift < 0 else "→"
+            st.markdown(f"- **{band}**: {direction} {shift:+.1%}")
+
+    # --- Top Co-occurring Pairs ---
+    st.subheader("Pares con Mayor Co-ocurrencia")
+
+    with st.expander("Detalle de co-ocurrencias", expanded=False):
+        if pred_scores["cooccurrence_top_pairs"]:
+            pairs_data = []
+            for a, b, score in pred_scores["cooccurrence_top_pairs"][:20]:
+                pairs_data.append({
+                    "Par": f"{a:02d}-{b:02d}",
+                    "Co-ocurrencia": f"{score:.3f}",
+                })
+            st.dataframe(pd.DataFrame(pairs_data), hide_index=True)
+        else:
+            st.info("No hay suficientes datos para calcular co-ocurrencias.")
+
+    # --- Recommended Tickets ---
+    st.subheader("Boletos Recomendados")
+
+    if ticket_recs["recommended_tickets"]:
+        for i, rec in enumerate(ticket_recs["recommended_tickets"]):
+            with st.container(border=True):
+                cols = st.columns([2, 3])
+                with cols[0]:
+                    st.markdown(f"**Boleto {i + 1}**")
+                    st.markdown(f"Numeros: `{' '.join(f'{n:02d}' for n in rec['numbers'])}`")
+                    st.markdown(f"Franja: {rec['band_dist'][0]}-{rec['band_dist'][1]}-{rec['band_dist'][2]}")
+                    st.metric("Score", f"{rec['score']:.1f}")
+                with cols[1]:
+                    st.markdown("**Razonamiento:**")
+                    st.markdown(rec["reasoning"])
+    else:
+        st.warning("No se pudieron generar boletos recomendados con los parametros actuales.")
+
+    # --- Co-occurrence Heatmap ---
+    with st.expander("Matriz de co-ocurrencia (top 20 numeros)", expanded=False):
+        cooc_matrix = compute_cooccurrence_matrix(draws, pred_window)
+        top20_nums = [item["number"] for item in pred_scores["number_scores"][:20]]
+        subset_cooc = cooc_matrix.loc[top20_nums, top20_nums]
+        st.dataframe(
+            subset_cooc.style.background_gradient(cmap="YlOrRd"),
+        )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # DATA INGESTION UI
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -2495,11 +2719,12 @@ def main():
         return
 
     # --- Tabs ---
-    tab1, tab2, tab3, tab4 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
         ":material/table_chart: Matrices Intermedias",
         ":material/query_stats: Pool Dinamico",
         ":material/style: Volantes & Reduccion Combinatoria",
         ":material/analytics: Backtesting",
+        ":material/auto_awesome: Analisis Predictivo",
     ])
 
     with tab1:
@@ -2513,6 +2738,9 @@ def main():
 
     with tab4:
         render_tab_backtesting(draws, config)
+
+    with tab5:
+        render_tab_predictive(draws, config)
 
 
 if __name__ == "__main__":
