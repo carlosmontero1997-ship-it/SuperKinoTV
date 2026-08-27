@@ -1,109 +1,87 @@
-# Phase 3: Quality & Polish — Context Decisions
+# Phase 3 Enhancement: Ticket Verification — Context
 
-## Domain
-This phase implements quality assurance, testing, documentation, and deployment infrastructure for the SuperKino (Dominican Republic Keno) lottery analysis application. All quality gates are deterministic and Python-based, with no model-generated content.
+**Gathered:** 2026-08-27
+**Status:** Ready for planning
 
-## Core Value
-Deterministic quality assurance for lottery analysis application — all tests, documentation, and deployment pipelines are implemented in Python with full traceability and repeatability.
+<domain>
+## Phase Boundary
 
-## Decisions Captured
+Add ability for user to input winning numbers and verify how many matches (aciertos) each generated ticket has. This is an enhancement to the existing Phase 3 wheeling/volantes functionality.
 
-### Test Suite Structure
-- **Test framework**: `pytest` configured in `pyproject.toml`
-- **Test location**: `tests/test_core.py` covering core modules
-- **Test modules without Streamlit dependencies**:
-  - `test_models.py` — Draw dataclass validation, DrawHistory operations
-  - `test_ingest.py` — Line parser, format validation, gap detection
-  - `test_analysis.py` — Matrices, gaps, lift, sums/parity/decades calculations
-  - `test_scoring.py` — Individual number scores, temperature generation
-  - `test_simulator.py` — Walk-forward backtest, hypergeometric reference comparison
+</domain>
 
-### Test Coverage Priorities
-- **Unit tests**: Core functions in `superkino/core/` without Streamlit imports
-- **Integration tests**: Core → UI data flow (manual verification)
-- **Hypergeometric baseline**: All statistical comparisons include random baseline
-- **Theoretical floors**: Always visible in test output
-- **Temperature range**: Tests across T ∈ [0.05, 2.0] for number generation
+<decisions>
+## Implementation Decisions
 
-### Quality Gates
-- **Honest statistics**: Theoretical floors always visible in test results
-- **Random baseline comparison**: Mandatory in all statistical assertions
-- **Code conventions**: `black` formatting, NumPy docstrings for core modules
-- **Import order**: Standard library → third-party → local application imports
-- **Error handling**: Core module errors raise specific exception types
+### Input Method
+- **D-01:** User inputs 20 winning numbers via text area (same format as historical data: DD/MM/YYYY,N1,...,N20)
+- **D-02:** Alternative: simple text input with comma-separated numbers (no date required for verification)
+- **D-03:** Winning numbers validated: 20 unique numbers in range 1-80
 
-### Documentation Structure
-- **PROJECT.md**: Project context, goals, core value, constraints (from Phase 1)
-- **REQUIREMENTS.md**: 18 functional requirements, v1/v2 categorization, out of scope
-- **ROADMAP.md**: 4-phase roadmap, MVP mode, success criteria per phase
-- **STATE.md**: Project memory, recent changes, pending items
-- **CONTEXT.md per phase**: Phase 1 (analysis), Phase 2 (UI), Phase 3 (this phase)
-- **CODEBASE map**: 7-file `.planning/codebase/` map (STACK through CONCERNS)
-- **Onboarding SUMMARY.md**: Light index of learnings and next commands
+### Verification Display
+- **D-04:** Each ticket shows aciertos count (0-10 matches)
+- **D-05:** Matching numbers highlighted in green within each ticket
+- **D-06:** Summary: total aciertos, best ticket, distribution of aciertos (how many tickets got 5+, 6+, 7+, etc.)
 
-### Deployment Configuration
-- **Entry point**: `streamlit run superkino/app/Home.py`
-- **Dependencies**: `streamlit>=1.35.0`, `pandas>=2.2.0`, `numpy>=1.26.0`, `scipy>=1.12.0`, `plotly>=5.18.0`
-- **Python**: 3.11+ compatibility
-- **Database**: SQLite (`data/superkino.db`), re-seeded from `SuperKinoTV.txt`
-- **No build step**: Pure Python application, `pip install -r requirements.txt`
+### Prize Calculation (Optional)
+- **D-07:** Display prize tiers based on Dominican Republic Keno 20/80 rules:
+  - 10 aciertos: Premio mayor
+  - 9 aciertos: Segundo premio
+  - 8 aciertos: Tercer premio
+  - etc.
+- **D-08:** Show estimated prize per ticket and total
 
-### CI Considerations (planned)
-- `pytest tests/` — run test suite
-- `pytest --cov=superkino tests/` — with coverage
-- No CI configured yet; run locally
-- Future: GitHub Actions or similar
+### UI Location
+- **D-09:** Add "Verificar Ganador" section in the same "Volantes & Reduccion Combinatoria" tab, after the generated tickets
+- **D-10:** Verification only available after tickets are generated (requires tickets in session state)
 
-### Code Quality Gates
-- **Black formatting**: All Python files formatted with black
-- **Type hints**: Used where beneficial, not obsessively
-- **Docstrings**: NumPy format for core modules
-- **Import ordering**: Standard → third-party → local
-- **Error types**: Specific exceptions for core modules, user-friendly in UI
+### OpenCode's Discretion
+- Exact prize tier values (can research DR Keno rules)
+- Layout of verification results
+- Whether to show per-volante or per-ticket breakdown
 
-### Canonical References
-- `.planning/codebase/STACK.md` — Python 3.11+, pytest, black, pandas, numpy, scipy, plotly
-- `.planning/codebase/ARCHITECTURE.md` — Core/UI layering, quality gate strategy
-- `.planning/codebase/STRUCTURE.md` — Package hierarchy, test locations
-- `.planning/codebase/INTEGRATIONS.md` — SQLite integration, deployment setup
-- `.planning/codebase/CONVENTIONS.md` — Quality conventions, naming standards
-- `.planning/codebase/TESTING.md` — Test framework, coverage criteria, running tests
-- `.planning/codebase/CONCERNS.md` — Known quality issues, numerical stability, performance concerns
+</decisions>
 
-### Open Questions / Deferred
-- **Optimal test coverage percentage**: Target for v1 vs v2
-- **Database re-seeding**: Frequency and UX for re-seeding from source data
-- **User result comparison**: Core module vs UI layer placement
-- **Extended test types**: Property-based testing, fuzz testing
-- **CI/CD pipeline**: Choice of platform (GitHub Actions, GitLab CI, etc.)
-- **Performance benchmarks**: Thresholds for walk-forward simulator speed
+<specifics>
+## Specific Ideas
 
-### Decisions Carried from Prior Phases
-- **Data format**: `DD/MM/YYYY,N1,...,N20` with ascending sort (Phase 1)
-- **Validation**: Format, range 1-80, count 20 per line (Phase 1)
-- **Temperature control**: T ∈ [0.05, 2.0], deterministic generation (Phase 1)
-- **Wheeling algorithm**: 3 juegas/volante, RD$75, ascending order, 0 duplicates (Phase 1)
-- **UI structure**: 5-page Streamlit app (Phase 2)
-- **Sidebar controls**: ventana móvil, pool size, boletos count, franja distribution (Phase 2)
+- User wants to quickly check if their generated tickets would have won
+- The verification should be visual — easy to see which numbers matched
+- Should work with any winning numbers (not just from the historical data)
 
-### Quality Gate Checklist (for v1)
-- [ ] `pytest tests/` passes 100%
-- [ ] All statistical tests include random baseline comparison
-- [ ] Theoretical floors visible in all output
-- [ ] `black` formatting on all Python files
-- [ ] Type hints on public functions
-- [ ] Docstrings on all core modules (NumPy format)
-- [ ] Import ordering consistent (stdlib → 3rd-party → local)
-- [ ] Specific exception types for core errors
-- [ ] SQLite database functional
-- [ ] Streamlit app runs without errors
-- [ ] Onboarding summary present and accurate
+</specifics>
 
-### Next Steps
-- Proceed to `/gsd-discuss-phase 4` for Release phase
-- Or capture additional quality decisions for CONTEXT.md
-- Planning Phase 3 will use this CONTEXT.md as context for task decomposition
-- Consider setting up `pytest` configuration and writing initial test suite
+<canonical_refs>
+## Canonical References
 
-## Summary
-Phase 3 Quality & Polish captures the test suite structure, quality gates, documentation standards, and deployment configuration for the SuperKinoTV application. All decisions are deterministic Python-based with full traceability, carrying forward constraints from Phases 1 (analysis) and 2 (UI). The phase enables downstream planners and executors to implement quality assurance without re-asking these decisions.
+**Downstream agents MUST read these before planning or implementing.**
+
+### Requirements
+- `.planning/REQUIREMENTS.md` — TICK-06
+
+### Existing Implementation
+- `app.py:render_tab_tickets()` — Current volantes tab (needs enhancement)
+- `app.py:wheeling_reduction()` — Current wheeling algorithm
+- `app.py:group_into_volantes()` — Current volante grouping
+
+</canonical_refs>
+
+<code_context>
+## Existing Code Insights
+
+### Reusable Assets
+- `render_tab_tickets()` in app.py — Current volantes rendering (line 996)
+- `st.session_state.draws` — Historical draws already loaded
+- Ticket generation flow: pool → wheeling → volantes → display
+
+### Integration Points
+- Tickets stored in `st.session_state` after generation
+- Winning numbers input needs validation (same as historical data)
+- Verification results displayed inline after ticket generation
+
+</code_context>
+
+---
+
+*Phase: 03-keno-v1.1 (enhancement)*
+*Context gathered: 2026-08-27*
