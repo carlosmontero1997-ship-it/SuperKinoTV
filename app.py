@@ -2591,9 +2591,12 @@ def render_tab_predictive(draws: List[Draw], config: Dict) -> None:
         if cooc_matrix is not None:
             top20_nums = [item["number"] for item in pred_scores["number_scores"][:20]]
             subset_cooc = cooc_matrix.loc[top20_nums, top20_nums]
-            st.dataframe(
-                subset_cooc.style.background_gradient(cmap="YlOrRd"),
-            )
+            try:
+                styled = subset_cooc.style.background_gradient(cmap="YlOrRd")
+                st.dataframe(styled)
+            except ImportError:
+                st.dataframe(subset_cooc)
+                st.caption("Instala matplotlib para ver el gradiente de color.")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
