@@ -661,6 +661,11 @@ def render_tab_matrices(draws: List[Draw], config: Dict):
     st.markdown("**Top 20 Numeros mas Frios:**")
     st.dataframe(df_gap.head(20), width="stretch")
 
+    # Bar chart for top 20 coldest numbers
+    df_top20 = df_gap.head(20).copy()
+    df_top20["Numero"] = df_top20["Numero"].astype(str)
+    st.bar_chart(df_top20.set_index("Numero")["Gap"])
+
     # Summary stats
     col1, col2, col3 = st.columns(3)
     with col1:
