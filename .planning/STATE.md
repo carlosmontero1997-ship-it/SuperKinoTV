@@ -3,7 +3,7 @@
 ## Current Status
 - Project: SuperKinoTV
 - Milestone: v1.2 Backtesting & Band Distribution
-- Current Phase: Not started (defining requirements)
+- Current Phase: 5 — Dynamic Band Distribution per Ticket (planned)
 - Codebase: Single app.py (1,401 lines)
 - Git: Initialized
 
