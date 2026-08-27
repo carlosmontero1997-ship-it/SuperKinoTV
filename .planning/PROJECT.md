@@ -10,8 +10,8 @@ Deterministic combinatorial analysis and wheeling-based ticket generation from h
 
 ## Current State
 
-**Shipped:** v1.2 Phase 6 (2026-08-27)
-**Codebase:** Single `app.py` (1,839 lines), Streamlit 1.62.0, pandas 3.0.5, numpy 2.5.2, scipy 1.18.0
+**Shipped:** v1.2 (all phases complete, 2026-08-27)
+**Codebase:** Single `app.py` (2,747 lines), Streamlit 1.62.0, pandas 3.0.5, numpy 2.5.2, scipy 1.18.0
 **Data:** 120 historical draws (21/04/2026 – 19/08/2026) in SuperKinoTV.txt
 **Server:** Running locally at http://localhost:8501
 
@@ -50,6 +50,7 @@ Deterministic combinatorial analysis and wheeling-based ticket generation from h
 - [x] Walk-forward backtesting simulator (BT-01 through BT-05) — v1.2 — validated in Phase 6
 - [x] S100 = most recent draw in intermediate matrix — v1.2 — validated in Phase 4
 - [x] Dynamic band distribution per ticket (user selects 4-3-3, 3-4-3, 1-4-4-1, etc.) — v1.2 — validated in Phase 5
+- [x] Predictive analysis engine with 6-factor scoring — v1.2 — validated in Phase 7
 
 ### Out of Scope
 
@@ -117,4 +118,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-08-27 after Phase 6 completion*
+*Last updated: 2026-08-27 after v1.2 milestone complete*
