@@ -38,6 +38,16 @@ BAND_HIGH = list(range(55, 81))  # 55-80
 
 COST_PER_VOLANTE = 75  # RD$
 
+# Per-ticket band distribution presets (B-M-A counts that sum to 10)
+# Phase 5: BAND-01 — user selects a scheme from sidebar
+TICKET_BAND_PRESETS = {
+    "4-3-3": (4, 3, 3),
+    "3-4-3": (3, 4, 3),
+    "3-3-4": (3, 3, 4),
+    "1-4-5": (1, 4, 5),
+    "2-4-4": (2, 4, 4),
+}
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # DATA MODELS
@@ -580,12 +590,63 @@ def render_sidebar(n_draws: int) -> Dict:
         )
         band_valid = False
 
+    # ═══════════════════════════════════════════════════════════════════════════
+    # PER-TICKET BAND DISTRIBUTION (Phase 5: BAND-01, BAND-04)
+    # ═══════════════════════════════════════════════════════════════════════════
+    st.sidebar.divider()
+    st.sidebar.subheader("Distribucion por Boleto")
+
+    # Preset selector (5 presets + Custom)
+    preset_options = list(TICKET_BAND_PRESETS.keys()) + ["Custom"]
+    selected_preset = st.sidebar.selectbox(
+        "Esquema de distribucion",
+        preset_options,
+        key="_ticket_band_preset",
+        help="Selecciona un preset o Custom para definir manualmente",
+    )
+
+    if selected_preset == "Custom":
+        custom_b = st.sidebar.number_input(
+            "Baja (por boleto)", min_value=0, max_value=10, value=4, key="_custom_tb"
+        )
+        custom_m = st.sidebar.number_input(
+            "Media (por boleto)", min_value=0, max_value=10, value=3, key="_custom_tm"
+        )
+        custom_a = st.sidebar.number_input(
+            "Alta (por boleto)", min_value=0, max_value=10, value=3, key="_custom_ta"
+        )
+        ticket_band_dist = (custom_b, custom_m, custom_a)
+        ticket_band_sum = custom_b + custom_m + custom_a
+        if ticket_band_sum != 10:
+            st.sidebar.error(
+                f":material/error: La suma ({ticket_band_sum}) debe ser 10 (tamano del boleto)"
+            )
+            ticket_band_valid = False
+        else:
+            ticket_band_valid = True
+    else:
+        ticket_band_dist = TICKET_BAND_PRESETS[selected_preset]
+        ticket_band_valid = True
+
+    # Uniform vs Variable toggle
+    distribution_mode = st.sidebar.radio(
+        "Modo de distribucion",
+        ["Uniforme", "Variable"],
+        key="_distribution_mode",
+        help="Uniforme: todos los boletos con la misma distribucion. Variable: el wheeling puede variar por boleto",
+    )
+    uniform_mode = distribution_mode == "Uniforme"
+
     return {
         "window": window,
         "pool_size": pool_size,
         "n_tickets": n_tickets,
         "band_dist": band_dist,
         "band_valid": band_valid,
+        "ticket_band_dist": ticket_band_dist,
+        "ticket_band_valid": ticket_band_valid,
+        "uniform_mode": uniform_mode,
+        "selected_preset": selected_preset,
     }
 
 
@@ -1046,6 +1107,43 @@ def render_tab_tickets(draws: List[Draw], config: Dict):
     pool, band_counts = generate_dynamic_pool(draws, window, pool_size, band_dist)
 
     st.info(f"Pool base: {pool}")
+
+    # Phase 5: Validate pool can satisfy per-ticket band distribution
+    ticket_band_dist = config.get("ticket_band_dist")
+    ticket_band_valid = config.get("ticket_band_valid", True)
+    uniform_mode = config.get("uniform_mode", True)
+
+    if ticket_band_valid and ticket_band_dist is not None:
+        pool_baja = sum(1 for n in pool if n in BAND_LOW)
+        pool_media = sum(1 for n in pool if n in BAND_MID)
+        pool_alta = sum(1 for n in pool if n in BAND_HIGH)
+        tb, tm, ta = ticket_band_dist
+        pool_errors = []
+        preset_name = config.get("selected_preset", "Custom")
+        if pool_baja < tb:
+            pool_errors.append(
+                f"Pool no tiene suficientes numeros Baja ({pool_baja}) "
+                f"para esquema {preset_name} (necesita {tb})"
+            )
+        if pool_media < tm:
+            pool_errors.append(
+                f"Pool no tiene suficientes numeros Media ({pool_media}) "
+                f"para esquema {preset_name} (necesita {tm})"
+            )
+        if pool_alta < ta:
+            pool_errors.append(
+                f"Pool no tiene suficientes numeros Alta ({pool_alta}) "
+                f"para esquema {preset_name} (necesita {ta})"
+            )
+        if pool_errors:
+            for e in pool_errors:
+                st.sidebar.error(f":material/error: {e}")
+            ticket_band_valid = False
+
+    # Block generation if ticket_band_valid is False
+    if not ticket_band_valid:
+        st.warning("Ajuste la distribucion por boleto antes de generar.")
+        return
 
     # Execute wheeling — store in session_state
     if st.button("Generar Boletos", type="primary", key="gen_tickets"):
