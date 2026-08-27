@@ -41,7 +41,7 @@ Plans:
 
 **UI hint:** yes
 
-### Phase 2: Analysis Matrices & Pool Generation
+### Phase 2: Analysis Matrices & Pool Generation ✅
 
 **Goal:** Display intermediate frequency matrices and generate ranked dynamic pool from statistical analysis.
 
@@ -50,8 +50,8 @@ Plans:
 **Plans:** 2 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — Matrix tab: conditional formatting, gap analysis, positional frequency totals
-- [ ] 02-02-PLAN.md — Pool tab: full 80-number ranking, band colors, gap context, co-occurrence display
+- [x] 02-01-PLAN.md — Matrix tab: conditional formatting, gap analysis, positional frequency totals
+- [x] 02-02-PLAN.md — Pool tab: full 80-number ranking, band colors, gap context, co-occurrence display
 
 **Success Criteria:**
 1. 100×20 intermediate matrix displays all draws with 20 sorted positions
