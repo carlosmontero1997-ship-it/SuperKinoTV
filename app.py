@@ -326,48 +326,35 @@ def wheeling_reduction(
     pool: List[int],
     n_tickets: int,
     ticket_size: int = 10,
-) -> List[Tuple[int, ...]]:
+) -> Tuple[List[Tuple[int, ...]], List[str]]:
     """Deterministic wheeling reduction algorithm.
 
     Generates n_tickets combinations of ticket_size numbers each,
     drawn from the pool using a balanced covering approach.
 
-    Algorithm:
-    1. Generate all C(pool_size, ticket_size) combinations if feasible
-    2. Score each by coverage (how many unique pairs/triples it covers)
-    3. Greedily select n_tickets that maximize total coverage
-    4. Enforce strict blindaje: ascending sort, 0 duplicates
+    Returns (tickets, errors). If errors is non-empty, tickets may be empty.
+    
+    Strict blindaje: ONLY pool numbers allowed, no external padding.
     """
     pool_sorted = sorted(pool)
     pool_size = len(pool_sorted)
+    errors: List[str] = []
 
     if pool_size < ticket_size:
-        # Pool too small — pad with smallest available numbers
-        extra = [n for n in range(1, 81) if n not in pool_sorted]
-        pool_sorted = sorted(pool_sorted + extra[: ticket_size - pool_size])
-        pool_size = len(pool_sorted)
+        errors.append(
+            f"Pool demasiado pequeno: {pool_size} numeros < {ticket_size} requeridos. "
+            f"Sube el tamano del pool o reduce la ventana."
+        )
+        return [], errors
 
-    # Generate candidate combinations
-    max_candidates = min(5000, math.comb(pool_size, ticket_size))
+    # Generate candidate combinations (only from pool numbers)
+    total_combos = math.comb(pool_size, ticket_size)
+    max_candidates = min(5000, total_combos)
 
     if max_candidates <= n_tickets:
-        # Fewer candidates than tickets — use all + fill
         candidates = list(itertools.combinations(pool_sorted, ticket_size))
-        # Pad if needed by repeating with small variations
-        while len(candidates) < n_tickets:
-            base = candidates[len(candidates) % max(candidates.__len__(), 1)]
-            # Try swapping one element
-            for alt in pool_sorted:
-                if alt not in base:
-                    new_ticket = tuple(sorted(list(base[:-1]) + [alt]))
-                    if new_ticket not in candidates and len(new_ticket) == ticket_size:
-                        candidates.append(new_ticket)
-                        break
-            else:
-                break
     else:
-        # Many candidates — use systematic sampling
-        step = max(1, math.comb(pool_size, ticket_size) // max_candidates)
+        step = max(1, total_combos // max_candidates)
         candidates = []
         for i, combo in enumerate(itertools.combinations(pool_sorted, ticket_size)):
             if i % step == 0:
@@ -375,18 +362,21 @@ def wheeling_reduction(
             if len(candidates) >= max_candidates:
                 break
 
+    if not candidates:
+        errors.append("No se pudieron generar combinaciones con los parametros actuales.")
+        return [], errors
+
     # Greedy coverage selection
     selected: List[Tuple[int, ...]] = []
     covered_pairs: set = set()
 
-    for _ in range(n_tickets):
+    for _ in range(min(n_tickets, len(candidates))):
         best_combo = None
         best_new_pairs = -1
 
         for combo in candidates:
             if combo in selected:
                 continue
-            # Count new pairs this combo would cover
             combo_pairs = set()
             for i in range(len(combo)):
                 for j in range(i + 1, len(combo)):
@@ -405,21 +395,26 @@ def wheeling_reduction(
         else:
             break
 
-    # Enforce strict blindaje
-    result = []
-    seen = set()
+    # Strict blindaje: verify all numbers are in pool, ascending, no duplicates
+    result: List[Tuple[int, ...]] = []
+    seen: set = set()
     for ticket in selected:
         t = tuple(sorted(ticket))
-        # Verify all numbers in pool
-        t = tuple(n for n in t if n in pool_sorted)
-        if len(t) < ticket_size:
+        # Verify ALL numbers in pool (should always pass since candidates come from pool)
+        if not all(n in pool_sorted for n in t):
             continue
-        t = tuple(sorted(t[:ticket_size]))
+        if len(t) != ticket_size:
+            continue
         if t not in seen:
             seen.add(t)
             result.append(t)
 
-    return result[:n_tickets]
+    if len(result) < n_tickets:
+        errors.append(
+            f"Solo se pudieron generar {len(result)} boletos unicos de {n_tickets} solicitados."
+        )
+
+    return result[:n_tickets], errors
 
 
 def group_into_volantes(tickets: List[Tuple[int, ...]]) -> List[List[Tuple[int, ...]]]:
@@ -1010,7 +1005,11 @@ def render_tab_tickets(draws: List[Draw], config: Dict):
     # Execute wheeling
     if st.button("Generar Boletos", type="primary", key="gen_tickets"):
         with st.spinner("Ejecutando reduccion combinatoria determinista..."):
-            tickets = wheeling_reduction(pool, n_tickets, ticket_size=10)
+            tickets, wheel_errors = wheeling_reduction(pool, n_tickets, ticket_size=10)
+
+        if wheel_errors:
+            for err in wheel_errors:
+                st.warning(err)
 
         if not tickets:
             st.error("No se pudieron generar boletos. Verifica el pool y parametros.")
