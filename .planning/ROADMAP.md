@@ -63,7 +63,7 @@ Plans:
 
 **UI hint:** yes
 
-#### Phase 6: Walk-Forward Backtesting Engine
+#### Phase 6: Walk-Forward Backtesting Engine ✅
 
 **Goal:** Execute walk-forward backtest comparing user's wheeling strategy against random baseline with temperature control.
 
@@ -72,14 +72,14 @@ Plans:
 **Plans:** 1 plan
 
 Plans:
-- [ ] 06-01-PLAN.md — Implement walk-forward backtesting engine, hypergeometric/Monte Carlo baselines, temperature integration, and Backtesting tab UI
+- [x] 06-01-PLAN.md — Implement walk-forward backtesting engine, hypergeometric/Monte Carlo baselines, temperature integration, and Backtesting tab UI
 
 **Success Criteria:**
-1. Walk-forward simulation runs: train on N draws, test on next, slide forward
-2. User strategy performance tracked across all test periods
-3. Random baseline comparison displayed (hypergeometric)
-4. Temperature parameter T controls exploration vs exploitation
-5. Results visualization: cumulative aciertos, hit rate, ROI comparison
+1. Walk-forward simulation runs: train on N draws, test on next, slide forward ✓
+2. User strategy performance tracked across all test periods ✓
+3. Random baseline comparison displayed (hypergeometric + Monte Carlo) ✓
+4. Temperature parameter T controls exploration vs exploitation ✓
+5. Results visualization: cumulative aciertos, hit rate, ROI comparison ✓
 
 **UI hint:** yes
 
@@ -115,7 +115,7 @@ Plans:
 | 3. Wheeling, Volantes & Verification | v1.1 | 1/1 | Complete | 2026-08-26 |
 | 4. Matrix Ordering Fix | v1.2 | 0/1 | Not started | - |
 | 5. Band Distribution per Ticket | v1.2 | 1/1 | Complete | 2026-08-27 |
-| 6. Walk-Forward Backtesting | v1.2 | 0/1 | Not started | - |
+| 6. Walk-Forward Backtesting | v1.2 | 1/1 | Complete | 2026-08-27 |
 | 7. Predictive Analysis | v1.2 | 0/1 | Not started | - |
 
 ### Backlog
