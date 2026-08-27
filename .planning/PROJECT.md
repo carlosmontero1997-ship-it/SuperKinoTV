@@ -1,4 +1,4 @@
-# SuperKinoTV v1.1 — Keno 20/80 Analysis & Ticket Generator
+# SuperKinoTV — Keno 20/80 Analysis & Ticket Generator
 
 ## What This Is
 
@@ -8,9 +8,24 @@ Streamlit-based WebApp for deterministic analysis and ticket generation for the 
 
 Deterministic combinatorial analysis and wheeling-based ticket generation from historical Keno 20/80 data, with zero random/LLM-generated numbers.
 
+## Current State
+
+**Shipped:** v1.1 (2026-08-26)
+**Codebase:** Single `app.py` (1,401 lines), Streamlit 1.62.0, pandas 3.0.5, numpy 2.5.2
+**Data:** 120 historical draws (21/04/2026 – 19/08/2026) in SuperKinoTV.txt
+**Server:** Running locally at http://localhost:8501
+
+### What v1.1 Delivered
+
+- Strict all-or-nothing data ingestion with dual source detection, session state persistence
+- Full 80-number frequency ranking with gap analysis and band color coding
+- Deterministic wheeling reduction algorithm with strict blindaje enforcement
+- Winning number verification with per-ticket aciertos tracking
+- Physical volantes (3 plays each, RD$75 cost) with download capability
+
 ## Requirements
 
-### Validated
+### Validated (v1.0)
 
 - ✓ Data ingestion with DD/MM/YYYY,N1,...,N20 format parsing — v1.0
 - ✓ Draw validation (range 1-80, 20 unique numbers per draw) — v1.0
@@ -20,23 +35,19 @@ Deterministic combinatorial analysis and wheeling-based ticket generation from h
 - ✓ Temperature-controlled combination generation — v1.0
 - ✓ Walk-forward backtesting simulator — v1.0
 
+### Validated (v1.1)
+
+- ✓ Strict all-or-nothing data ingestion with dual source detection — v1.1
+- ✓ Forced Personalizada band distribution with auto-recalc — v1.1
+- ✓ Full 80-number frequency ranking with band colors — v1.1
+- ✓ Gap analysis with cold/hot number identification — v1.1
+- ✓ Deterministic wheeling reduction with strict blindaje — v1.1
+- ✓ Winning number verification with aciertos tracking — v1.1
+- ✓ Physical volantes (3 plays each, RD$75 cost) with download — v1.1
+
 ### Active
 
-- [ ] FR-01: Dual data ingestion (file upload .txt/.csv + text area paste)
-- [ ] FR-02: Sort-by-ascending sort on each draw's 20 numbers
-- [ ] FR-03: Sliding window selector (max 100 retroactive draws)
-- [ ] FR-04: Dynamic Pool size selector (15-30 numbers, default 20)
-- [ ] FR-05: Ticket quantity selector (6-30 tickets, default 18)
-- [ ] FR-06: Band distribution selector (Low 01-26, Mid 27-54, High 55-80)
-- [ ] FR-07: Tab 1 — 100×20 intermediate matrix display
-- [ ] FR-08: Tab 1 — 10×10 positional frequency matrix (grouped by adjacent lane pairs)
-- [ ] FR-09: Tab 2 — Dynamic Pool with deduplicated frequency+co-occurrence ranking
-- [ ] FR-10: Tab 2 — Pool band metrics (Low/Mid/High counts)
-- [ ] FR-11: Tab 3 — Deterministic wheeling reduction algorithm
-- [ ] FR-12: Tab 3 — Physical volantes (3 tickets each, RD$75 cost per volante)
-- [ ] FR-13: Tab 3 — Strict blindaje (0 out-of-pool numbers, ascending sort, 0 duplicates)
-- [ ] FR-14: Tab 3 — Download button for generated tickets (.txt)
-- [ ] Q-01: App renders correctly in Streamlit with sidebar + tabs layout
+- [ ] Walk-forward backtesting simulator (BT-01 through BT-05) — v1.2
 
 ### Out of Scope
 
@@ -49,7 +60,7 @@ Deterministic combinatorial analysis and wheeling-based ticket generation from h
 
 ## Context
 
-- **Existing codebase**: v1.0 MVP shipped with 5-page Streamlit app, core analysis engine, scoring, simulation
+- **Existing codebase**: v1.1 shipped with single `app.py` (1,401 lines), 3-tab Streamlit layout
 - **Data**: 120 historical draws (21/04/2026 – 19/08/2026) in SuperKinoTV.txt
 - **Target audience**: Lottery enthusiasts interested in statistical analysis of Keno 20/80
 - **Game rules**: Keno 20/80 draws 20 numbers from 1-80; players select up to 10 numbers per ticket
@@ -57,7 +68,7 @@ Deterministic combinatorial analysis and wheeling-based ticket generation from h
 
 ## Constraints
 
-- **Tech stack**: Python 3.11+, Streamlit, pandas, numpy, itertools
+- **Tech stack**: Python 3.11+, Streamlit 1.62.0, pandas 3.0.5, numpy 2.5.2, plotly
 - **Determinism**: All combinatorial/extraction logic must be pure Python backend — no LLM number generation
 - **Performance**: Must handle up to 100-draw window with 80-number matrix efficiently
 - **Wheeling**: Deterministic reduction, not random sampling; 0 duplicates guaranteed
@@ -71,6 +82,9 @@ Deterministic combinatorial analysis and wheeling-based ticket generation from h
 | Band tri-split (26/28/26) | Low 01-26, Mid 27-54, High 55-80 matches Keno distribution | ✓ |
 | RD$75 per volante | Dominican Republic standard lottery ticket cost | ✓ |
 | Wheeling over random sampling | Deterministic reduction guarantees coverage | ✓ |
+| Forced Personalizada band dist | User always defines distribution, no presets | ✓ |
+| Strict all-or-nothing validation | Any error blocks all data, no partial state | ✓ |
+| Greedy pair-coverage wheeling | Deterministic, fast, sufficient for small pool sizes | ✓ |
 
 ## Evolution
 
@@ -90,4 +104,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-08-26 after initialization*
+*Last updated: 2026-08-27 after v1.1 milestone completion*
