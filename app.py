@@ -189,6 +189,38 @@ def compute_positional_frequency_matrix(draws: List[Draw], window: int) -> pd.Da
     return df
 
 
+def compute_gap_analysis(draws: List[Draw], window: int) -> pd.DataFrame:
+    """Gap analysis: number of draws since each number last appeared.
+
+    Returns DataFrame with columns ['Numero', 'Ultima_Aparicion', 'Gap'],
+    sorted by Gap descending (coldest numbers first).
+    Numbers that never appeared in the window get gap = window.
+    """
+    subset = draws[-window:] if len(draws) >= window else draws
+    n_draws = len(subset)
+
+    last_seen: Dict[int, int] = {}
+    for idx, draw in enumerate(subset):
+        for n in draw.numbers:
+            last_seen[n] = idx
+
+    rows: List[Dict] = []
+    for num in range(1, 81):
+        if num in last_seen:
+            gap = n_draws - 1 - last_seen[num]
+            last_date = subset[last_seen[num]].date_iso
+        else:
+            gap = n_draws
+            last_date = "N/A"
+        rows.append({"Numero": num, "Ultima_Aparicion": last_date, "Gap": gap})
+
+    df = pd.DataFrame(rows)
+    df = df.sort_values("Gap", ascending=False).reset_index(drop=True)
+    df.index = range(1, len(df) + 1)
+    df.index.name = "Rank"
+    return df
+
+
 def compute_frequency_ranking(draws: List[Draw], window: int) -> List[Tuple[int, float, int]]:
     """Rank numbers by frequency + co-occurrence score.
 
@@ -551,19 +583,31 @@ def render_tab_matrices(draws: List[Draw], config: Dict):
 
     window = config["window"]
 
-    # 1. 100x20 Intermediate Matrix
+    # 1. 100x20 Intermediate Matrix with conditional formatting
     st.subheader(f"Matriz Intermedia {window} x 20")
     st.caption(
         f"Cada fila es un sorteo ordenado, columnas P1-P20 son las posiciones "
-        f"(menor a mayor). Mostrando ultimos {window} sorteos."
+        f"(menor a mayor). Mostrando ultimos {window} sorteos. "
+        f"Celdas con numeros resaltadas en azul, ceros en gris."
     )
 
     df_inter = compute_intermediate_matrix(draws, window)
-    st.dataframe(df_inter, width="stretch", height=400)
+
+    def _style_intermediate_matrix(val):
+        """Highlight cells with presence (non-zero), neutral for zeros."""
+        if val == 0 or val == 0.0:
+            return "background-color: #f0f0f0; color: #999999"
+        return "background-color: #e3f2fd; color: #1565c0; font-weight: bold"
+
+    try:
+        styled = df_inter.style.map(_style_intermediate_matrix)
+    except AttributeError:
+        styled = df_inter.style.applymap(_style_intermediate_matrix)
+    st.dataframe(styled, width="stretch", height=400, use_container_width=True)
 
     st.divider()
 
-    # 2. 10x10 Positional Frequency Matrix
+    # 2. 10x10 Positional Frequency Matrix with totals
     st.subheader("Matriz 10 x 10 de Frecuencias Posicionales")
     st.caption(
         "Agrupada por pares de carriles adyacentes: "
@@ -573,6 +617,12 @@ def render_tab_matrices(draws: List[Draw], config: Dict):
 
     df_freq = compute_positional_frequency_matrix(draws, window)
     st.dataframe(df_freq, width="stretch")
+
+    # Add totals row
+    df_freq_with_totals = df_freq.copy()
+    df_freq_with_totals.loc["Total"] = df_freq_with_totals.sum()
+    st.subheader("Tabla de Frecuencias con Totales")
+    st.dataframe(df_freq_with_totals, width="stretch")
 
     # Heatmap visualization
     try:
@@ -589,6 +639,35 @@ def render_tab_matrices(draws: List[Draw], config: Dict):
         st.plotly_chart(fig, width="stretch")
     except ImportError:
         st.info("Instala plotly para visualizaciones: `pip install plotly`")
+
+    st.divider()
+
+    # 3. Gap Analysis (D-11)
+    st.subheader("Analisis de Brechas (Gap Analysis)")
+    st.caption(
+        f"Cuantos sorteos han pasado desde la ultima aparicion de cada numero. "
+        f"Numeros con gap alto = frios (no aparecen recientemente). "
+        f"Ventana: {window} sorteos."
+    )
+
+    df_gap = compute_gap_analysis(draws, window)
+
+    # Show top 20 coldest numbers
+    st.markdown("**Top 20 Numeros mas Frios:**")
+    st.dataframe(df_gap.head(20), width="stretch")
+
+    # Summary stats
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        avg_gap = df_gap["Gap"].mean()
+        st.metric("Gap Promedio", f"{avg_gap:.1f}")
+    with col2:
+        max_gap = df_gap["Gap"].max()
+        st.metric("Gap Maximo", int(max_gap))
+    with col3:
+        cold_threshold = window // 2
+        cold_count = len(df_gap[df_gap["Gap"] > cold_threshold])
+        st.metric("Numeros Frios", cold_count, delta=f"gap > {cold_threshold}")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
