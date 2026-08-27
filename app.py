@@ -2342,7 +2342,7 @@ def render_tab_backtesting(draws: List[Draw], config: Dict) -> None:
     temp_results = st.session_state.get("bt_temp_results")
     if temp_results:
         temp_df = pd.DataFrame(temp_results)
-        st.dataframe(temp_df, use_container_width=True, hide_index=True)
+        st.dataframe(temp_df, width="stretch", hide_index=True)
         st.line_chart(temp_df.set_index("T")[["Tasa de acierto"]])
 
     # --- Per-period detail ---
@@ -2356,7 +2356,7 @@ def render_tab_backtesting(draws: List[Draw], config: Dict) -> None:
                 "Esperado (MC)": f"{r['mc_avg_aciertos']:.2f}",
             })
         detail_df = pd.DataFrame(detail_data)
-        st.dataframe(detail_df, use_container_width=True, hide_index=True)
+        st.dataframe(detail_df, width="stretch", hide_index=True)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
