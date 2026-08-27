@@ -336,15 +336,18 @@ def wheeling_reduction(
     pool: List[int],
     n_tickets: int,
     ticket_size: int = 10,
-) -> Tuple[List[Tuple[int, ...]], List[str]]:
-    """Deterministic wheeling reduction algorithm.
+    ticket_band_dist: Optional[Tuple[int, int, int]] = None,
+    uniform: bool = True,
+) -> Tuple[List[Tuple[int, ...]], List[str], List[Tuple[int, int, int]]]:
+    """Deterministic wheeling reduction with optional per-ticket band distribution.
 
-    Generates n_tickets combinations of ticket_size numbers each,
-    drawn from the pool using a balanced covering approach.
+    Args:
+        ticket_band_dist: (baja_count, media_count, alta_count) per ticket. None = no constraint.
+        uniform: If True, all tickets use same distribution. If False, wheeling may vary per ticket.
 
-    Returns (tickets, errors). If errors is non-empty, tickets may be empty.
-    
-    Strict blindaje: ONLY pool numbers allowed, no external padding.
+    Returns:
+        (tickets, errors, ticket_band_distributions) where ticket_band_distributions[i] is the
+        actual (b, m, a) count for tickets[i].
     """
     pool_sorted = sorted(pool)
     pool_size = len(pool_sorted)
@@ -374,11 +377,30 @@ def wheeling_reduction(
 
     if not candidates:
         errors.append("No se pudieron generar combinaciones con los parametros actuales.")
-        return [], errors
+        return [], errors, []
+
+    # Phase 5: Filter candidates by per-ticket band distribution
+    if ticket_band_dist is not None:
+        tb, tm, ta = ticket_band_dist
+        filtered_candidates = []
+        for combo in candidates:
+            b_count = sum(1 for n in combo if n in BAND_LOW)
+            m_count = sum(1 for n in combo if n in BAND_MID)
+            a_count = sum(1 for n in combo if n in BAND_HIGH)
+            if b_count == tb and m_count == tm and a_count == ta:
+                filtered_candidates.append(combo)
+        candidates = filtered_candidates
+        if not candidates:
+            errors.append(
+                f"No se pudieron generar combinaciones con distribucion {ticket_band_dist}. "
+                f"El pool no permite esta distribucion para boletos de tamano {ticket_size}."
+            )
+            return [], errors, []
 
     # Greedy coverage selection
     selected: List[Tuple[int, ...]] = []
     covered_pairs: set = set()
+    ticket_bands: List[Tuple[int, int, int]] = []
 
     for _ in range(min(n_tickets, len(candidates))):
         best_combo = None
@@ -399,6 +421,11 @@ def wheeling_reduction(
 
         if best_combo is not None:
             selected.append(best_combo)
+            # Track band distribution for this ticket
+            b = sum(1 for n in best_combo if n in BAND_LOW)
+            m = sum(1 for n in best_combo if n in BAND_MID)
+            a = sum(1 for n in best_combo if n in BAND_HIGH)
+            ticket_bands.append((b, m, a))
             for i in range(len(best_combo)):
                 for j in range(i + 1, len(best_combo)):
                     covered_pairs.add((best_combo[i], best_combo[j]))
@@ -407,8 +434,9 @@ def wheeling_reduction(
 
     # Strict blindaje: verify all numbers are in pool, ascending, no duplicates
     result: List[Tuple[int, ...]] = []
+    result_bands: List[Tuple[int, int, int]] = []
     seen: set = set()
-    for ticket in selected:
+    for idx, ticket in enumerate(selected):
         t = tuple(sorted(ticket))
         # Verify ALL numbers in pool (should always pass since candidates come from pool)
         if not all(n in pool_sorted for n in t):
@@ -418,13 +446,15 @@ def wheeling_reduction(
         if t not in seen:
             seen.add(t)
             result.append(t)
+            if idx < len(ticket_bands):
+                result_bands.append(ticket_bands[idx])
 
     if len(result) < n_tickets:
         errors.append(
             f"Solo se pudieron generar {len(result)} boletos unicos de {n_tickets} solicitados."
         )
 
-    return result[:n_tickets], errors
+    return result[:n_tickets], errors, result_bands[:n_tickets]
 
 
 def group_into_volantes(tickets: List[Tuple[int, ...]]) -> List[List[Tuple[int, ...]]]:
@@ -1148,7 +1178,11 @@ def render_tab_tickets(draws: List[Draw], config: Dict):
     # Execute wheeling — store in session_state
     if st.button("Generar Boletos", type="primary", key="gen_tickets"):
         with st.spinner("Ejecutando reduccion combinatoria determinista..."):
-            tickets, wheel_errors = wheeling_reduction(pool, n_tickets, ticket_size=10)
+            tickets, wheel_errors, ticket_bands = wheeling_reduction(
+                pool, n_tickets, ticket_size=10,
+                ticket_band_dist=ticket_band_dist,
+                uniform=uniform_mode,
+            )
 
         if wheel_errors:
             for err in wheel_errors:
@@ -1162,12 +1196,14 @@ def render_tab_tickets(draws: List[Draw], config: Dict):
         st.session_state.generated_tickets = tickets
         st.session_state.generated_volantes = volantes
         st.session_state.generated_pool = pool
+        st.session_state.generated_ticket_bands = ticket_bands
         st.rerun()
 
     # Display generated tickets (from session_state)
     tickets = st.session_state.get("generated_tickets", [])
     volantes = st.session_state.get("generated_volantes", [])
     saved_pool = st.session_state.get("generated_pool", [])
+    ticket_bands_data = st.session_state.get("generated_ticket_bands", [])
 
     if not tickets:
         st.info("Haz clic en 'Generar Boletos' para comenzar.")
@@ -1184,6 +1220,23 @@ def render_tab_tickets(draws: List[Draw], config: Dict):
         total_cost = len(volantes) * COST_PER_VOLANTE
         st.metric("Costo Total", f"RD${total_cost:,}")
 
+    # Phase 5: Per-ticket band composition display
+    if ticket_bands_data:
+        st.subheader("Distribucion por Boleto")
+        band_df_data = []
+        for i, (ticket, bands) in enumerate(zip(tickets, ticket_bands_data)):
+            b, m, a = bands
+            band_df_data.append({
+                "Boleto": i + 1,
+                "Numeros": ", ".join(f"{n:02d}" for n in ticket),
+                "Baja": b,
+                "Media": m,
+                "Alta": a,
+                "Esquema": f"{b}-{m}-{a}",
+            })
+        band_df = pd.DataFrame(band_df_data)
+        st.dataframe(band_df, width="stretch", hide_index=True)
+
     st.divider()
 
     # Display volantes
@@ -1195,7 +1248,14 @@ def render_tab_tickets(draws: List[Draw], config: Dict):
         ):
             for play_idx, ticket in enumerate(volante):
                 nums_str = ", ".join(f"{n:02d}" for n in ticket)
-                st.write(f"**Jugada {play_idx + 1}:** {nums_str}")
+                # Phase 5: Get band distribution for this ticket
+                ticket_idx = tickets.index(ticket) if ticket in tickets else -1
+                if ticket_idx >= 0 and ticket_idx < len(ticket_bands_data):
+                    b, m, a = ticket_bands_data[ticket_idx]
+                    band_str = f" [B:{b} M:{m} A:{a}]"
+                else:
+                    band_str = ""
+                st.write(f"**Jugada {play_idx + 1}:** {nums_str}{band_str}")
 
     st.divider()
 
@@ -1221,6 +1281,19 @@ def render_tab_tickets(draws: List[Draw], config: Dict):
     if len(ticket_set) != len(tickets):
         blindaje_ok = False
         issues.append("Tickets duplicados detectados")
+
+    # Phase 5: Verify band distribution per ticket
+    if ticket_band_dist is not None:
+        for i, ticket in enumerate(tickets):
+            if i < len(ticket_bands_data):
+                actual_b, actual_m, actual_a = ticket_bands_data[i]
+                expected_b, expected_m, expected_a = ticket_band_dist
+                if (actual_b, actual_m, actual_a) != (expected_b, expected_m, expected_a):
+                    blindaje_ok = False
+                    issues.append(
+                        f"Boleto {i+1}: distribucion {actual_b}-{actual_m}-{actual_a} "
+                        f"no coincide con {expected_b}-{expected_m}-{expected_a}"
+                    )
 
     if blindaje_ok:
         st.success(
@@ -1252,7 +1325,13 @@ def render_tab_tickets(draws: List[Draw], config: Dict):
         download_lines.append(f"--- VOLANTE #{vol_idx + 1} (RD${COST_PER_VOLANTE}) ---")
         for play_idx, ticket in enumerate(volante):
             nums_str = ",".join(f"{n:02d}" for n in ticket)
-            download_lines.append(f"  Jugada {play_idx + 1}: {nums_str}")
+            # Phase 5: Include band info per ticket
+            ticket_idx = tickets.index(ticket) if ticket in tickets else -1
+            if ticket_idx >= 0 and ticket_idx < len(ticket_bands_data):
+                b, m, a = ticket_bands_data[ticket_idx]
+                download_lines.append(f"  Jugada {play_idx + 1}: {nums_str}  [{b}-{m}-{a}]")
+            else:
+                download_lines.append(f"  Jugada {play_idx + 1}: {nums_str}")
         download_lines.append("")
 
     download_lines.extend([
