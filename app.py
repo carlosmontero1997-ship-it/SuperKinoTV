@@ -645,6 +645,67 @@ def render_tab_matrices(draws: List[Draw], config: Dict):
     except ImportError:
         st.info("Instala plotly para visualizaciones: `pip install plotly`")
 
+    # Numbers by zone heatmap (informative)
+    st.subheader("Numeros por Posicion y Franja")
+    st.caption(
+        "Lista de numeros que aparecen en cada zona (franja × grupo de carril). "
+        "Ayuda a identificar visualmente las zonas mas calientes."
+    )
+
+    subset = draws[-window:] if len(draws) >= window else draws
+    zone_numbers: Dict[str, Dict[str, List[int]]] = {
+        "Baja(01-26)": {f"C{i+1}": [] for i in range(10)},
+        "Media(27-54)": {f"C{i+1}": [] for i in range(10)},
+        "Alta(55-80)": {f"C{i+1}": [] for i in range(10)},
+    }
+
+    for draw in subset:
+        nums = draw.numbers
+        for col_group in range(10):
+            pos_a = col_group * 2
+            pos_b = col_group * 2 + 1
+            for pos in [pos_a, pos_b]:
+                if pos < len(nums):
+                    n = nums[pos]
+                    if n in BAND_LOW:
+                        zone_numbers["Baja(01-26)"][f"C{col_group+1}"].append(n)
+                    elif n in BAND_MID:
+                        zone_numbers["Media(27-54)"][f"C{col_group+1}"].append(n)
+                    else:
+                        zone_numbers["Alta(55-80)"][f"C{col_group+1}"].append(n)
+
+    # Create display DataFrame with unique sorted numbers per cell
+    zone_display: Dict[str, Dict[str, str]] = {}
+    zone_counts: Dict[str, Dict[str, int]] = {}
+    for band, cols in zone_numbers.items():
+        zone_display[band] = {}
+        zone_counts[band] = {}
+        for col, nums in cols.items():
+            unique_sorted = sorted(set(nums))
+            zone_display[band][col] = ", ".join(str(n) for n in unique_sorted) if unique_sorted else "-"
+            zone_counts[band][col] = len(unique_sorted)
+
+    df_zone = pd.DataFrame(zone_display)
+    df_counts = pd.DataFrame(zone_counts)
+
+    # Style with color intensity based on count
+    def _style_zone(val: str, band: str, col: str) -> str:
+        count = zone_counts.get(band, {}).get(col, 0)
+        if count == 0:
+            return "background-color: #f5f5f5; color: #999"
+        intensity = min(count / 15.0, 1.0)
+        r = int(255 - intensity * 30)
+        g = int(255 - intensity * 80)
+        b = int(255 - intensity * 20)
+        return f"background-color: rgb({r},{g},{b}); color: #333; font-size: 0.85em"
+
+    styled_zones = pd.DataFrame(index=df_zone.index, columns=df_zone.columns)
+    for band in df_zone.index:
+        for col in df_zone.columns:
+            styled_zones.loc[band, col] = _style_zone(df_zone.loc[band, col], band, col)
+
+    st.dataframe(df_zone, width="stretch")
+
     st.divider()
 
     # 3. Gap Analysis (D-11)
