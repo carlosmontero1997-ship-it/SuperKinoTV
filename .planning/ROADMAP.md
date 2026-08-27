@@ -20,17 +20,17 @@
 <details open>
 <summary>◆ v1.1 Keno Analysis & Wheeling (Phases 1-3) — CURRENT</summary>
 
-### Phase 1: Data Ingestion & Controls
+### Phase 1: Data Ingestion & Controls ✅
 
 **Goal:** User can upload/paste historical Keno data and configure all analysis parameters via sidebar controls.
 
 **Requirements:** DATA-01 through DATA-05, CTRL-01 through CTRL-04
 
-**Plans:** 2 plans
+**Plans:** 2/2 plans completed
 
 Plans:
-- [ ] 01-01-PLAN.md — Strict data ingestion with dual source detection, replace confirmation, session state persistence
-- [ ] 01-02-PLAN.md — Sidebar controls with forced Personalizada band distribution, auto-recalc, sum validation, colored metrics
+- [x] 01-01-PLAN.md — Strict data ingestion with dual source detection, replace confirmation, session state persistence
+- [x] 01-02-PLAN.md — Sidebar controls with forced Personalizada band distribution, auto-recalc, sum validation, colored metrics
 
 **Success Criteria:**
 1. User can upload .txt/.csv file or paste data into text area — both produce valid draws
