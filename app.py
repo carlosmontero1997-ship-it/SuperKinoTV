@@ -94,22 +94,23 @@ def parse_line(raw: str) -> Tuple[bool, Optional[Draw], Optional[str]]:
     return True, Draw(date_iso=date_iso, numbers=sorted_nums), None
 
 
-def ingest_lines(lines: List[str]) -> Tuple[List[Draw], List[Tuple[int, str]]]:
+def ingest_lines(lines: List[str]) -> Tuple[List[Draw], List[Tuple[int, str, str]]]:
     """Parse multiple lines. Returns (draws, errors).
     
     Per D-02: if ANY line fails, NO data is loaded (all-or-nothing).
+    Errors tuple: (line_number, error_message, raw_line_content)
     """
     draws: List[Draw] = []
-    errors: List[Tuple[int, str]] = []
+    errors: List[Tuple[int, str, str]] = []
     seen_dates: set = set()
 
     for idx, raw in enumerate(lines):
         ok, draw, err = parse_line(raw)
         if not ok:
-            errors.append((idx + 1, err))  # 1-indexed line numbers per D-03
+            errors.append((idx + 1, err, raw.strip()))  # 1-indexed line numbers per D-03
             continue
         if draw.date_iso in seen_dates:
-            errors.append((idx + 1, f"Fecha duplicada: {draw.date_iso}"))
+            errors.append((idx + 1, f"Fecha duplicada: {draw.date_iso}", raw.strip()))
             continue
         seen_dates.add(draw.date_iso)
         draws.append(draw)
@@ -122,7 +123,7 @@ def ingest_lines(lines: List[str]) -> Tuple[List[Draw], List[Tuple[int, str]]]:
     return draws, errors
 
 
-def get_draws_from_input(uploaded_file, text_area: str) -> Tuple[List[Draw], List[Tuple[int, str]]]:
+def get_draws_from_input(uploaded_file, text_area: str) -> Tuple[List[Draw], List[Tuple[int, str, str]]]:
     """Unified ingestion from file upload or text area."""
     all_lines: List[str] = []
 
@@ -1050,8 +1051,9 @@ def render_data_ingestion() -> List[Draw]:
     if errors:
         # D-02: NO data loaded when errors exist
         with st.expander(f":material/error: {len(errors)} lineas con errores"):
-            for line_num, err_msg in errors:
-                st.write(f"Linea {line_num}: {err_msg}")
+            for line_num, err_msg, raw_line in errors:
+                st.write(f"**Linea {line_num}:** {err_msg}")
+                st.code(f"{raw_line}", language=None)
         return []
 
     if draws:
