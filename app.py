@@ -426,6 +426,51 @@ def group_into_volantes(tickets: List[Tuple[int, ...]]) -> List[List[Tuple[int, 
     return volantes
 
 
+def verify_winning_numbers(
+    tickets: List[Tuple[int, ...]],
+    winning_numbers: List[int],
+) -> Tuple[List[Dict], Dict]:
+    """Verify tickets against winning numbers.
+    
+    Returns (ticket_results, summary) where:
+    - ticket_results: list of dicts with keys: ticket, aciertos, matching_numbers
+    - summary: dict with keys: total_tickets, best_aciertos, best_tickets, distribution
+    """
+    if len(winning_numbers) != 20:
+        raise ValueError("Se necesitan exactamente 20 numeros ganadores.")
+    
+    winning_set = set(winning_numbers)
+    results = []
+    
+    for ticket in tickets:
+        matching = [n for n in ticket if n in winning_set]
+        results.append({
+            "ticket": ticket,
+            "aciertos": len(matching),
+            "matching_numbers": matching,
+        })
+    
+    results.sort(key=lambda x: x["aciertos"], reverse=True)
+    
+    aciertos_counts = [r["aciertos"] for r in results]
+    best = max(aciertos_counts) if aciertos_counts else 0
+    best_tickets = [r for r in results if r["aciertos"] == best]
+    
+    distribution = {}
+    for threshold in [5, 6, 7, 8, 9, 10]:
+        distribution[f"{threshold}+"] = len([a for a in aciertos_counts if a >= threshold])
+    
+    summary = {
+        "total_tickets": len(tickets),
+        "best_aciertos": best,
+        "best_tickets": best_tickets,
+        "distribution": distribution,
+        "total_matches": sum(aciertos_counts),
+    }
+    
+    return results, summary
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # SIDEBAR CONTROLS
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1116,6 +1161,79 @@ def render_tab_tickets(draws: List[Draw], config: Dict):
             mime="text/plain",
             type="primary",
         )
+
+        # Verification against winning numbers
+        st.divider()
+        st.subheader(":material/verified: Verificar Contra Numeros Ganadores")
+        st.caption("Ingresa los 20 numeros ganadores para verificar aciertos en tus boletos.")
+
+        winning_input = st.text_area(
+            "Numeros ganadores (20 numeros separados por coma)",
+            placeholder="01,05,12,18,23,25,30,35,40,44,50,52,55,57,59,61,63,70,75,80",
+            help="Ingresa exactamente 20 numeros del 1 al 80, separados por coma.",
+            key="winning_numbers_input",
+        )
+
+        if st.button("Verificar Aciertos", type="primary", key="verify_btn"):
+            try:
+                winning_nums = [int(n.strip()) for n in winning_input.split(",")]
+            except ValueError:
+                st.error("Formato invalido: usa numeros separados por coma (ej: 1,5,12,...)")
+                st.stop()
+
+            if len(winning_nums) != 20:
+                st.error(f"Se necesitan 20 numeros, se ingresaron {len(winning_nums)}.")
+                st.stop()
+
+            if not all(1 <= n <= 80 for n in winning_nums):
+                st.error("Los numeros deben estar en el rango 1-80.")
+                st.stop()
+
+            if len(set(winning_nums)) != 20:
+                st.error("Los numeros deben ser unicos.")
+                st.stop()
+
+            results, summary = verify_winning_numbers(tickets, winning_nums)
+
+            # Summary metrics
+            st.subheader("Resumen de Verificacion")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Mejor Aciertos", f"{summary['best_aciertos']}/10")
+            with col2:
+                st.metric("Total Aciertos", summary["total_matches"])
+            with col3:
+                avg = summary["total_matches"] / summary["total_tickets"] if summary["total_tickets"] else 0
+                st.metric("Promedio", f"{avg:.1f}")
+
+            # Distribution
+            st.subheader("Distribucion de Aciertos")
+            dist_cols = st.columns(6)
+            for i, (tier, count) in enumerate(summary["distribution"].items()):
+                with dist_cols[i]:
+                    st.metric(f"{tier} aciertos", count)
+
+            # Detailed results per volante
+            st.subheader("Resultados por Volante")
+
+            for vol_idx, volante in enumerate(volantes):
+                volante_results = [r for r in results if r["ticket"] in volante]
+                best_in_vol = max(r["aciertos"] for r in volante_results) if volante_results else 0
+                with st.expander(f"Volante #{vol_idx + 1} — Mejor: {best_in_vol} aciertos"):
+                    for r in volante_results:
+                        ticket_str = ", ".join(f"{n:02d}" for n in r["ticket"])
+                        matching_str = ", ".join(f"{n:02d}" for n in r["matching_numbers"])
+
+                        if r["aciertos"] >= 7:
+                            color = "🟢"
+                        elif r["aciertos"] >= 5:
+                            color = "🟡"
+                        else:
+                            color = "⚪"
+
+                        st.write(f"{color} **{r['aciertos']}/10** — {ticket_str}")
+                        if r["matching_numbers"]:
+                            st.caption(f"   Aciertos: {matching_str}")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
