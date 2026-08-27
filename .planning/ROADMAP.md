@@ -1,10 +1,10 @@
-# Roadmap: SuperKinoTV
+# Roadmap: SuperKinoTV v1.2
 
 ## Milestones
 
 - ✅ **v1.0 MVP** — Phases 1-4 (shipped 2026-08-26)
 - ✅ **v1.1 Keno Analysis & Wheeling** — Phases 1-3 (shipped 2026-08-26)
-- 🚧 **v1.2 Backtesting** — Phase 1 (planned)
+- 🚧 **v1.2 Backtesting & Band Distribution** — Phases 4-7 (current)
 
 ## Phases
 
@@ -27,9 +27,71 @@
 
 </details>
 
-### 🚧 v1.2 Backtesting (Planned)
+### 🚧 v1.2 Backtesting & Band Distribution (Phases 4-7) — CURRENT
 
-- [ ] Phase 4: Walk-Forward Backtesting (BT-01 through BT-05)
+#### Phase 4: Matrix Ordering Fix
+
+**Goal:** Ensure intermediate matrix displays S1 as most recent draw and always uses the 100 most recent draws available.
+
+**Requirements:** MATX-03, MATX-04
+
+**Plans:** pending
+
+**Success Criteria:**
+1. S1 is the top row (most recent draw) in intermediate matrix
+2. Matrix always uses up to 100 most recent draws (or all available if <100)
+3. Row numbering is consistent across the app
+
+**UI hint:** no
+
+#### Phase 5: Dynamic Band Distribution per Ticket
+
+**Goal:** User can select band distribution scheme (4-3-3, 3-4-3, 1-4-4-1, etc.) and wheeling algorithm respects it per ticket.
+
+**Requirements:** BAND-01, BAND-02, BAND-03
+
+**Plans:** pending
+
+**Success Criteria:**
+1. Sidebar shows band distribution selector with common presets + custom option
+2. Wheeling algorithm produces tickets matching selected distribution
+3. Ticket summary shows band composition per ticket
+4. Band distribution info visible in volantes display
+
+**UI hint:** yes
+
+#### Phase 6: Walk-Forward Backtesting Engine
+
+**Goal:** Execute walk-forward backtest comparing user's wheeling strategy against random baseline with temperature control.
+
+**Requirements:** BT-01, BT-02, BT-03, BT-04, BT-05
+
+**Plans:** pending
+
+**Success Criteria:**
+1. Walk-forward simulation runs: train on N draws, test on next, slide forward
+2. User strategy performance tracked across all test periods
+3. Random baseline comparison displayed (hypergeometric)
+4. Temperature parameter T controls exploration vs exploitation
+5. Results visualization: cumulative aciertos, hit rate, ROI comparison
+
+**UI hint:** yes
+
+#### Phase 7: Predictive Analysis & Optimization
+
+**Goal:** Intelligent analysis to optimize number selection with suggested distributions and predictive insights.
+
+**Requirements:** BT-06
+
+**Plans:** pending
+
+**Success Criteria:**
+1. Predictive analysis suggests optimal number combinations
+2. Distribution suggestions based on historical patterns
+3. Intelligent analysis combines frequency, gap, and co-occurrence data
+4. Results displayed with clear confidence indicators
+
+**UI hint:** yes
 
 ## Progress
 
@@ -42,11 +104,14 @@
 | 1. Data Ingestion & Controls | v1.1 | 2/2 | Complete | 2026-08-26 |
 | 2. Analysis Matrices & Pool | v1.1 | 2/2 | Complete | 2026-08-26 |
 | 3. Wheeling, Volantes & Verification | v1.1 | 1/1 | Complete | 2026-08-26 |
-| 4. Walk-Forward Backtesting | v1.2 | 0/1 | Not started | - |
+| 4. Matrix Ordering Fix | v1.2 | 0/1 | Not started | - |
+| 5. Band Distribution per Ticket | v1.2 | 0/1 | Not started | - |
+| 6. Walk-Forward Backtesting | v1.2 | 0/1 | Not started | - |
+| 7. Predictive Analysis | v1.2 | 0/1 | Not started | - |
 
 ### Backlog
 
 No backlog items.
 
 ---
-*Last updated: 2026-08-27 after v1.1 milestone completion*
+*Last updated: 2026-08-27 after v1.2 milestone start*
