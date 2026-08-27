@@ -706,6 +706,100 @@ def render_tab_matrices(draws: List[Draw], config: Dict):
 
     st.dataframe(df_zone, width="stretch")
 
+    # Scatter plot with marginal histograms
+    try:
+        import plotly.graph_objects as go
+        from plotly.subplots import make_subplots
+
+        scatter_data: List[Dict] = []
+        for draw in subset:
+            nums = draw.numbers
+            for col_group in range(10):
+                pos_a = col_group * 2
+                pos_b = col_group * 2 + 1
+                for pos in [pos_a, pos_b]:
+                    if pos < len(nums):
+                        n = nums[pos]
+                        if n in BAND_LOW:
+                            band = "Baja"
+                        elif n in BAND_MID:
+                            band = "Media"
+                        else:
+                            band = "Alta"
+                        scatter_data.append({
+                            "Numero": n,
+                            "Grupo": f"C{col_group+1}",
+                            "Franja": band,
+                        })
+
+        df_scatter = pd.DataFrame(scatter_data)
+
+        fig = make_subplots(
+            rows=2, cols=2,
+            column_widths=[0.85, 0.15],
+            row_heights=[0.85, 0.15],
+            horizontal_spacing=0.02,
+            vertical_spacing=0.02,
+            specs=[
+                [{"type": "scatter"}, {"type": "bar"}],
+                [{"type": "bar"}, None],
+            ],
+        )
+
+        color_map = {"Baja": "#1565c0", "Media": "#f9a825", "Alta": "#c62828"}
+
+        for band in ["Baja", "Media", "Alta"]:
+            df_b = df_scatter[df_scatter["Franja"] == band]
+            fig.add_trace(
+                go.Scatter(
+                    x=df_b["Grupo"],
+                    y=df_b["Numero"],
+                    mode="markers",
+                    name=band,
+                    marker=dict(color=color_map[band], opacity=0.5, size=4),
+                    showlegend=True,
+                ),
+                row=1, col=1,
+            )
+
+        # Marginal histogram: numbers by band (right side)
+        for band in ["Baja", "Media", "Alta"]:
+            df_b = df_scatter[df_scatter["Franja"] == band]
+            fig.add_trace(
+                go.Histogram(
+                    y=df_b["Numero"],
+                    orientation="h",
+                    marker_color=color_map[band],
+                    showlegend=False,
+                    nbinsy=20,
+                ),
+                row=1, col=2,
+            )
+
+        # Marginal histogram: groups by band (bottom)
+        for band in ["Baja", "Media", "Alta"]:
+            df_b = df_scatter[df_scatter["Franja"] == band]
+            fig.add_trace(
+                go.Histogram(
+                    x=df_b["Grupo"],
+                    marker_color=color_map[band],
+                    showlegend=False,
+                ),
+                row=2, col=1,
+            )
+
+        fig.update_xaxes(title_text="Grupo de Carril", row=2, col=1)
+        fig.update_yaxes(title_text="Numero", row=1, col=1)
+        fig.update_layout(
+            height=600,
+            title_text="Distribucion de Numeros por Posicion y Franja",
+            legend_title_text="Franja",
+        )
+
+        st.plotly_chart(fig, width="stretch")
+    except ImportError:
+        st.info("Instala plotly para visualizaciones: `pip install plotly`")
+
     st.divider()
 
     # 3. Gap Analysis (D-11)
