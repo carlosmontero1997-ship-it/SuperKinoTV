@@ -16,9 +16,9 @@
 
 ### Distribución de Bandas por Boleto
 
-- [ ] **BAND-01**: Usuario puede seleccionar esquema de distribución de bandas por boleto (ej: 4-3-3, 3-4-3, 1-4-4-1)
-- [ ] **BAND-02**: Algoritmo de wheeling respeta la distribución de bandas seleccionada por boleto
-- [ ] **BAND-03**: Mostrar información de distribución de bandas en resumen de boletos y volantes
+- [x] **BAND-01**: Usuario puede seleccionar esquema de distribución de bandas por boleto (ej: 4-3-3, 3-4-3, 1-4-4-1)
+- [x] **BAND-02**: Algoritmo de wheeling respeta la distribución de bandas seleccionada por boleto
+- [x] **BAND-03**: Mostrar información de distribución de bandas en resumen de boletos y volantes
 
 ### Matriz Intermedia
 
@@ -43,15 +43,17 @@
 | BT-04 | Phase 6 | Pendiente |
 | BT-05 | Phase 6 | Pendiente |
 | BT-06 | Phase 7 | Pendiente |
-| BAND-01 | Phase 5 | Pendiente |
-| BAND-02 | Phase 5 | Pendiente |
-| BAND-03 | Phase 5 | Pendiente |
+| BAND-01 | Phase 5 | Completo |
+| BAND-02 | Phase 5 | Completo |
+| BAND-03 | Phase 5 | Completo |
 | MATX-03 | Phase 4 | Pendiente |
 | MATX-04 | Phase 4 | Pendiente |
 
 **Cobertura:**
 - v1.2 requirements: 11 total
 - Mapeados a fases: 11
+- Completados: 3 (BAND-01, BAND-02, BAND-03)
+- Pendientes: 8
 - Sin mapear: 0 ✓
 
 ---

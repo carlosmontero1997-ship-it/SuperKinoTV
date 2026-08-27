@@ -44,7 +44,7 @@
 
 **UI hint:** no
 
-#### Phase 5: Dynamic Band Distribution per Ticket
+#### Phase 5: Dynamic Band Distribution per Ticket ✅
 
 **Goal:** User can select band distribution scheme (4-3-3, 3-4-3, 1-4-4-1, etc.) and wheeling algorithm respects it per ticket.
 
@@ -53,13 +53,13 @@
 **Plans:** 1 plan
 
 Plans:
-- [ ] 05-01-PLAN.md — Add per-ticket band distribution selector, wheeling with band filtering, and per-ticket band display
+- [x] 05-01-PLAN.md — Add per-ticket band distribution selector, wheeling with band filtering, and per-ticket band display
 
 **Success Criteria:**
-1. Sidebar shows band distribution selector with common presets + custom option
-2. Wheeling algorithm produces tickets matching selected distribution
-3. Ticket summary shows band composition per ticket
-4. Band distribution info visible in volantes display
+1. Sidebar shows band distribution selector with common presets + custom option ✓
+2. Wheeling algorithm produces tickets matching selected distribution ✓
+3. Ticket summary shows band composition per ticket ✓
+4. Band distribution info visible in volantes display ✓
 
 **UI hint:** yes
 
@@ -114,7 +114,7 @@ Plans:
 | 2. Analysis Matrices & Pool | v1.1 | 2/2 | Complete | 2026-08-26 |
 | 3. Wheeling, Volantes & Verification | v1.1 | 1/1 | Complete | 2026-08-26 |
 | 4. Matrix Ordering Fix | v1.2 | 0/1 | Not started | - |
-| 5. Band Distribution per Ticket | v1.2 | 0/1 | Planned | - |
+| 5. Band Distribution per Ticket | v1.2 | 1/1 | Complete | 2026-08-27 |
 | 6. Walk-Forward Backtesting | v1.2 | 0/1 | Not started | - |
 | 7. Predictive Analysis | v1.2 | 0/1 | Not started | - |
 
