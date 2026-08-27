@@ -48,6 +48,8 @@ Deterministic combinatorial analysis and wheeling-based ticket generation from h
 ### Active
 
 - [ ] Walk-forward backtesting simulator (BT-01 through BT-05) — v1.2
+- [ ] S100 = most recent draw in intermediate matrix — v1.2
+- [ ] Dynamic band distribution per ticket (user selects 4-3-3, 3-4-3, 1-4-4-1, etc.) — v1.2
 
 ### Out of Scope
 
@@ -86,6 +88,17 @@ Deterministic combinatorial analysis and wheeling-based ticket generation from h
 | Strict all-or-nothing validation | Any error blocks all data, no partial state | ✓ |
 | Greedy pair-coverage wheeling | Deterministic, fast, sufficient for small pool sizes | ✓ |
 
+---
+
+## Current Milestone: v1.2 Backtesting & Band Distribution
+
+**Goal:** Add walk-forward backtesting simulator, fix matrix row ordering, and enable dynamic band distribution per ticket.
+
+**Target features:**
+- Walk-forward backtesting with strategy vs random baseline comparison
+- Matrix row ordering: S100 = most recent draw
+- Dynamic band distribution per ticket (user-configurable: 4-3-3, 3-4-3, 1-4-4-1, etc.)
+
 ## Evolution
 
 This document evolves at phase transitions and milestone boundaries.
@@ -104,4 +117,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-08-27 after v1.1 milestone completion*
+*Last updated: 2026-08-27 after v1.2 milestone start*
