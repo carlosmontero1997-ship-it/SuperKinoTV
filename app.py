@@ -2245,10 +2245,36 @@ def render_tab_backtesting(draws: List[Draw], config: Dict) -> None:
             )
             st.session_state["bt_results"] = results
 
+            # Temperature effect — computed ONCE alongside the main backtest.
+            temp_values = [0.1, 0.5, 1.0, 1.5, 2.0]
+            temp_results = []
+            for t_val in temp_values:
+                bt_config_t = {**config, "window": train_window}
+                t_result = walk_forward_backtest(
+                    draws, bt_config_t,
+                    temperature=t_val,
+                    n_tickets=n_tickets,
+                    ticket_size=10,
+                )
+                temp_results.append({
+                    "T": t_val,
+                    "Tasa de acierto": t_result["hit_rate_user"],
+                    "Aciertos totales": t_result["cumulative_aciertos"][-1] if t_result["cumulative_aciertos"] else 0,
+                })
+            st.session_state["bt_temp_results"] = temp_results
+            st.session_state["bt_params_used"] = (train_window, round(float(bt_temperature), 2), n_tickets)
+
     results = st.session_state.get("bt_results")
     if results is None:
         st.info("Configure los parametros y presione 'Ejecutar Backtesting'.")
         return
+
+    # Stale-parameter detection — results shown from session_state until Run is pressed.
+    bt_params_used = st.session_state.get("bt_params_used")
+    if bt_params_used is not None:
+        current_bt = (train_window, round(float(bt_temperature), 2), n_tickets)
+        if current_bt != bt_params_used:
+            st.caption("Parametros cambiados — presione Ejecutar Backtesting para actualizar los resultados.")
 
     # --- Summary Metrics ---
     st.subheader("Resumen de Resultados")
@@ -2307,42 +2333,17 @@ def render_tab_backtesting(draws: List[Draw], config: Dict) -> None:
         chart_data.set_index("Periodo"),
     )
 
-    # --- Temperature Effect ---
+    # --- Temperature Effect (rendered from session_state, no recompute) ---
     st.subheader("Efecto de la Temperatura")
     st.markdown(
         "Compara como diferentes valores de T afectan el rendimiento."
     )
 
-    temp_values = [0.1, 0.5, 1.0, 1.5, 2.0]
-    temp_results = []
-    progress_bar = st.progress(0, text="Calculando efecto de temperatura...")
-
-    for i, t_val in enumerate(temp_values):
-        progress_bar.progress(
-            (i + 1) / len(temp_values),
-            text=f"Calculando T={t_val}..."
-        )
-        bt_config = {**config, "window": train_window}
-        t_result = walk_forward_backtest(
-            draws, bt_config,
-            temperature=t_val,
-            n_tickets=n_tickets,
-            ticket_size=10,
-        )
-        temp_results.append({
-            "T": t_val,
-            "Tasa de acierto": t_result["hit_rate_user"],
-            "Aciertos totales": t_result["cumulative_aciertos"][-1] if t_result["cumulative_aciertos"] else 0,
-        })
-
-    progress_bar.empty()
-
-    temp_df = pd.DataFrame(temp_results)
-    st.dataframe(temp_df, use_container_width=True, hide_index=True)
-
-    st.line_chart(
-        temp_df.set_index("T")[["Tasa de acierto"]],
-    )
+    temp_results = st.session_state.get("bt_temp_results")
+    if temp_results:
+        temp_df = pd.DataFrame(temp_results)
+        st.dataframe(temp_df, use_container_width=True, hide_index=True)
+        st.line_chart(temp_df.set_index("T")[["Tasa de acierto"]])
 
     # --- Per-period detail ---
     with st.expander("Detalle por periodo de prueba"):
